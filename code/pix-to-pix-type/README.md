@@ -25,6 +25,7 @@ After 15 epochs we get:
 ![15 epochs](images/gen_15.png "16 epochs")
 
 Compared to after one epoch.
+
 ![15 epochs](images/gen_0.png "1 epochs")
 
 So it seems the model is learning something.
