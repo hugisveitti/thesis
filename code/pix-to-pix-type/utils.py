@@ -56,7 +56,7 @@ def save_some_examples(gen, val_loader, epoch, folder, device):
         input_img = np.array(input_img.cpu())[0]
 
         
-        fig, ax = plt.subplots(1,3)
+        fig, ax = plt.subplots(1,3, figsize=(12,4))
         ax[0].imshow(np.moveaxis(input_img,0,-1))
         ax[0].set_title("input")
         ax[0].axis("off")

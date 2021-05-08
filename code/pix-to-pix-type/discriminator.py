@@ -33,7 +33,7 @@ class Discriminator(nn.Module):
             nn.Linear(512 * 4*4, 1024),
             nn.Linear(1024, 1),
             # BCEWITHLOGITSLOSS performs a sigmoid and BCELoss
-           # nn.Sigmoid()
+            # nn.Sigmoid()
         )
     
     def forward(self, x):
