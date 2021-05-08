@@ -10,11 +10,11 @@ from torch.utils.data import DataLoader
 from utils import save_example, plot_losses, save_models
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 0.0002
 BATCH_SIZE = 16
-ALPHA = 0.0004
+ALPHA = 0.001
 
-def train(discriminator, generator, loader, optimizer_disriminator, optimizer_generator, scaler, generator_loss_fn, bce_loss_fn):
+def train(discriminator, generator, loader, optimizer_disriminator, optimizer_generator, scaler, generator_loss_fn, adversarial_loss):
     loop = tqdm(loader, leave=True, position=0)
     total_d_loss = 0
     total_g_loss = 0
@@ -32,17 +32,15 @@ def train(discriminator, generator, loader, optimizer_disriminator, optimizer_ge
             d_fake = discriminator(fake_img.detach())
             
 
-            d_fake_loss = bce_loss_fn(d_fake, torch.zeros_like(d_fake))
-            d_real_loss = bce_loss_fn(d_real, torch.ones_like(d_real))
-            d_loss = d_fake_loss + d_real_loss
+            d_real_loss = adversarial_loss(d_real, torch.ones_like(d_real))
+            d_fake_loss = adversarial_loss(d_fake, torch.zeros_like(d_fake))
+            d_loss = (d_fake_loss + d_real_loss) / 2 
 
 
-            g_fake_loss = bce_loss_fn(d_fake, torch.ones_like(d_fake))
-            g_real_loss = bce_loss_fn(d_real, torch.zeros_like(d_real))
-            gen_gan_loss = g_fake_loss + g_real_loss
+            g_loss = adversarial_loss(d_fake, torch.ones_like(d_fake))
             
             generator_loss = generator_loss_fn(fake_img, target_img)
-            g_loss = generator_loss + gen_gan_loss * ALPHA
+            g_loss = generator_loss + (g_loss * ALPHA)
 
 
         
@@ -59,7 +57,7 @@ def train(discriminator, generator, loader, optimizer_disriminator, optimizer_ge
 
 
         total_d_loss += d_loss.item()
-        total_g_loss += gen_gan_loss.item()
+        total_g_loss += g_loss.item()
         total_generator_loss += generator_loss.item()
 
         total += 1
@@ -96,11 +94,11 @@ def main():
         print(f"\nepoch {epoch}")
         # mse loss probably not a good idea
         # CrossEntropyLoss probably better
-        g_loss, d_loss, l1_loss = train(discriminator, generator, loader, optimizer_disriminator, optimizer_generator,scaler, nn.L1Loss(), nn.BCEWithLogitsLoss())
+        g_loss, d_loss, l1_loss = train(discriminator, generator, loader, optimizer_disriminator, optimizer_generator,scaler, nn.L1Loss(), nn.MSELoss())
         losses["l1"].append(l1_loss)
         losses["g"].append(g_loss)
         losses["d"].append(d_loss)
-        plot_losses(losses, "loss")
+        plot_losses(losses, "loss mse")
         save_example(generator,val_loader,epoch,"eval",device)
     save_models(generator, discriminator, epoch)
 
