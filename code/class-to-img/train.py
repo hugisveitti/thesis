@@ -37,19 +37,16 @@ def train(discriminator, generator, loader, optimizer_disriminator, optimizer_ge
             d_loss = (d_fake_loss + d_real_loss) / 2 
 
 
-            g_loss = adversarial_loss(d_fake, torch.ones_like(d_fake))
-            
+            gen_gan_loss = adversarial_loss(d_fake, torch.ones_like(d_fake))
             generator_loss = generator_loss_fn(fake_img, target_img)
-            g_loss = generator_loss + (g_loss * ALPHA)
+            g_loss = generator_loss + (gen_gan_loss * ALPHA)
 
 
-        
+        # https://pytorch.org/docs/stable/notes/amp_examples.html#working-with-multiple-models-losses-and-optimizers
         optimizer_disriminator.zero_grad()
         optimizer_generator.zero_grad()
-
         scaler.scale(d_loss).backward(retain_graph=True)
         scaler.scale(g_loss).backward()
-
         scaler.step(optimizer_disriminator)
         scaler.step(optimizer_generator)
         
@@ -57,7 +54,7 @@ def train(discriminator, generator, loader, optimizer_disriminator, optimizer_ge
 
 
         total_d_loss += d_loss.item()
-        total_g_loss += g_loss.item()
+        total_g_loss += gen_gan_loss.item()
         total_generator_loss += generator_loss.item()
 
         total += 1
