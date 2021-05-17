@@ -1,6 +1,11 @@
 import torch 
 import torch.nn as nn
-import config
+
+if __name__ == "generator":
+    from config import torch_type
+else:
+    from .config import torch_type
+
 
 class Block(nn.Module):
 
@@ -105,11 +110,11 @@ class Generator(nn.Module):
 
 def test_shape():
     device = "cuda"
-    img_a = torch.randn((1, 3, 256, 256)).type(config.torch_type).to(device)
-    lc_ab = torch.randn((1, 14, 256, 256)).type(config.torch_type).to(device)
+    img_a = torch.randn((1, 3, 256, 256)).type(torch_type).to(device)
+    lc_ab = torch.randn((1, 14, 256, 256)).type(torch_type).to(device)
     print(img_a.shape)
     print(lc_ab.shape)
-    g = Generator().type(config.torch_type).to(device)
+    g = Generator().type(torch_type).to(device)
     g.eval()
    # with torch.cuda.amp.autocast(enabled=True):
 

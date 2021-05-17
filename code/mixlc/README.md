@@ -34,7 +34,9 @@ One is to concatenate them in the beginning and then treating them as one input.
 
 The other is to downsample them seperetly and then in the upsampling phase, concatenate them. Then it makes sense to use dialated convolution for the lc_ab but not rgb_a.
 
-I think I will start with the first option of concatenating them in the beginning.
+The generator I used here is two uNets with skip layers, lc_network and rgb_network that are then concatenated and put through two convolutional layers.
+
+Maybe it would make sense to only use skiplayers for the lc_generator
 
 ### Discriminator
 
