@@ -42,9 +42,28 @@ I am not sure weather to use local and global discriminators.
 
 For starts I will just use the global discriminator.
 
-### Training
+## Training
 
-### Results
+### Parameters
+
+LEARNING_RATE = 1e-3
+ALPHA = 0.5
+PIX_LAMBDA = 10
+LOCAL_PIX_LAMBDA = 5
+
+### Loss
+
+the adversarial loss was BCEWithLogitsLoss
+the pixel loss was L1Loss
+
+I used a "local rgb" loss where the targeted area plus a small border of 12 pixels was used pixel wise. That is in the gen_rgb_ab image the "b part" was compared especally pixel wise.
+I do this because I think otherwise just copying the rgb_a image is something the model might do.
+
+### Problems
+
+I had some problems with memory and thus had the use_ba parameter, with it set to false I can train on one batch on my machine. I can set it to true on colab. I was also having some issues with a lot of NANs, I suspect it has something to do with the autocasting and thus I removed it in this experiment.
+
+## Results
 
 After one epoch
 

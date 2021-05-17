@@ -11,18 +11,21 @@ import config
 
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 1
-PRETRAIN_EPOCH = 100
 ALPHA = 0.5
 PIX_LAMBDA = 10
 LOCAL_PIX_LAMBDA = 5
 
 use_ba = False
+use_mse = True
 
 start = config.start
 size = config.size
 bz = config.buffer_zone
 scaler = torch.cuda.amp.GradScaler()
-adv_loss = nn.MSELoss() # nn.BCEWithLogitsLoss() # nn.MSELoss()
+if use_mse:
+    adv_loss = nn.MSELoss() 
+else:
+    adv_loss = nn.BCEWithLogitsLoss()
 pixel_loss = nn.L1Loss()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -86,11 +89,17 @@ class Train:
             # Discriminator_loss
             
             d_fake_ab_loss = adv_loss(d_fake_ab, torch.zeros_like(d_fake_ab))
+            d_real_a_loss = adv_loss(d_real_a, torch.ones_like(d_real_a))
+            if use_mse:
+                d_fake_ab_loss = torch.sigmoid(d_fake_ab_loss)
+                d_real_a_loss = torch.sigmoid(d_real_a_loss)
+
             if use_ba:
                 d_fake_ba_loss = adv_loss(d_fake_ba, torch.zeros_like(d_fake_ba))
-            d_real_a_loss = adv_loss(d_real_a, torch.ones_like(d_real_a))
-            if use_ba:
                 d_real_b_loss = adv_loss(d_real_b, torch.ones_like(d_real_b))
+                if use_mse:
+                    d_fake_ba_loss = torch.sigmoid(d_fake_ba_loss)
+                    d_real_b_loss = torch.sigmoid(d_real_b_loss)
 
             if use_ba:
                 d_loss = (d_fake_ab_loss + d_fake_ba_loss + d_real_a_loss + d_real_b_loss) / 4
@@ -111,19 +120,23 @@ class Train:
                 rgb_ba_fake = self.generator(rgb_b, lc_ab)
 
             d_fake_ab = self.discriminator(rgb_ab_fake)
+            d_fake_ab_loss = adv_loss(d_fake_ab, torch.zeros_like(d_fake_ab))
+            g_adv_ab_loss = adv_loss(d_fake_ab_loss, torch.ones_like(d_fake_ab_loss))
+            if use_mse:
+                d_fake_ab_loss = torch.sigmoid(d_fake_ab_loss)
+                g_adv_ab_loss = torch.sigmoid(g_adv_ab_loss)
+
             if use_ba:
                 d_fake_ba = self.discriminator(rgb_ba_fake)
-        
-
-            d_fake_ab_loss = adv_loss(d_fake_ab, torch.zeros_like(d_fake_ab))
-            if use_ba:
                 d_fake_ba_loss = adv_loss(d_fake_ba, torch.zeros_like(d_fake_ba))
-
-            g_adv_ab_loss = adv_loss(d_fake_ab_loss, torch.ones_like(d_fake_ab_loss))
-            if use_ba:
                 g_adv_ba_loss = adv_loss(d_fake_ba_loss, torch.ones_like(d_fake_ba_loss))
-            
+                if use_mse:
+                    d_fake_ba_loss = torch.sigmoid(d_fake_ba_loss)
+                    g_adv_ba_loss = torch.sigmoid(g_adv_ba_loss)
+
+
             g_pix_ab_loss = pixel_loss(rgb_ab_fake, rgb_ab)
+            
             if use_ba:
                 g_pix_ba_loss = pixel_loss(rgb_ba_fake, rgb_ab)
 
