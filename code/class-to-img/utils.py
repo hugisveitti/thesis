@@ -43,44 +43,44 @@ def save_example(gen, val_loader, epoch, folder, device):
     input_classes, target_img = next(iter(val_loader))
     input_classes, target_img = input_classes.to(device), target_img.to(device)
     gen.eval()
-    with torch.no_grad() and torch.cuda.amp.autocast():
+   # with torch.no_grad() and torch.cuda.amp.autocast():
   
-        fake_img = gen(input_classes).cpu()
+    fake_img = gen(input_classes).cpu()
 
-        target_img = np.array(target_img.cpu())[0]
-        target_img = np.moveaxis(target_img, 0, -1)
-        input_classes = input_classes.cpu().numpy()[0]
-        input_classes = np.moveaxis(input_classes, 0, -1)
-        input_img = create_img_from_classes(np.array(input_classes))[:,:,:3]
+    target_img = np.array(target_img.cpu())[0]
+    target_img = np.moveaxis(target_img, 0, -1)
+    input_classes = input_classes.cpu().numpy()[0]
+    input_classes = np.moveaxis(input_classes, 0, -1)
+    input_img = create_img_from_classes(np.array(input_classes))[:,:,:3]
 
-        fake_img = fake_img.detach().numpy()[0]
-        fake_img = np.moveaxis(fake_img, 0, -1)
+    fake_img = fake_img.detach().numpy()[0]
+    fake_img = np.moveaxis(fake_img, 0, -1)
 
-        # undo normalization
-        target_img = np.array((target_img * 0.5 + 0.5) * 255, dtype=np.uint8)
-        fake_img = np.array((fake_img * 0.5 + 0.5) * 255, dtype=np.uint8)
+    # undo normalization
+    target_img = np.array((target_img * 0.5 + 0.5) * 255, dtype=np.uint8)
+    fake_img = np.array((fake_img * 0.5 + 0.5) * 255, dtype=np.uint8)
 
 
-        #input_img = np.array(input_img.cpu())[0]
+    #input_img = np.array(input_img.cpu())[0]
 
-        
-        fig, ax = plt.subplots(1,3, figsize=(12,4))
-        ax[0].imshow(input_img)
-        ax[0].set_title("input")
-        ax[0].axis("off")
+    
+    fig, ax = plt.subplots(1,3, figsize=(12,4))
+    ax[0].imshow(input_img)
+    ax[0].set_title("input")
+    ax[0].axis("off")
 
-        ax[1].imshow(target_img)
-        ax[1].set_title("target")
-        ax[1].axis("off")
+    ax[1].imshow(target_img)
+    ax[1].set_title("target")
+    ax[1].axis("off")
 
-        ax[2].imshow(fake_img)
-        ax[2].set_title("generated image")
-        ax[2].axis("off")
+    ax[2].imshow(fake_img)
+    ax[2].set_title("generated image")
+    ax[2].axis("off")
 
-        if not os.path.exists(folder):
-            os.mkdir(folder)
-        plt.savefig(f"{folder}/gen_{epoch}.png")
-        plt.close()
+    if not os.path.exists(folder):
+        os.mkdir(folder)
+    plt.savefig(f"{folder}/gen_{epoch}.png")
+    plt.close()
 
     gen.train()
 
@@ -104,8 +104,8 @@ def save_models(generator, discriminator, epoch):
     torch.save(discriminator.state_dict(), f"{folder}discriminator{epoch}.pt")
 
 def test():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    #device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda"
     g = Generator(14, 3).to(device)
     dataset = MyDataset("../../data/val/")
     loader = DataLoader(dataset, 1)

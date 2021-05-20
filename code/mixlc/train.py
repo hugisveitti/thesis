@@ -36,7 +36,7 @@ class Train:
         torch_type = config.torch_type
         self.generator = Generator().type(torch_type).to(device)
         self.discriminator = Discriminator().type(torch_type).to(device)
-        d = SatelliteDataset("../../data/train",10)
+        d = SatelliteDataset("../../data/train")
         self.loader = DataLoader(d, BATCH_SIZE, num_workers=1, pin_memory=True)
         self.dict_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE)
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE)
@@ -181,11 +181,11 @@ class Train:
             else:
                 total_g_local_pix_loss += g_local_pix_loss_ab.item() 
         
-            self.losses["g_adv_loss"].append(total_g_adv_loss / total)
-            self.losses["d_loss"].append(total_d_loss / total)
-            self.losses["g_pix_loss"].append(total_g_pix_loss / total)
-            self.losses["g_loss"].append(total_g_loss / total)
-            self.losses["g_local_pix_loss"].append(total_g_local_pix_loss / total)
+        self.losses["g_adv_loss"].append(total_g_adv_loss / total)
+        self.losses["d_loss"].append(total_d_loss / total)
+        self.losses["g_pix_loss"].append(total_g_pix_loss / total)
+        self.losses["g_loss"].append(total_g_loss / total)
+        self.losses["g_local_pix_loss"].append(total_g_local_pix_loss / total)
        
 
                 
@@ -196,7 +196,7 @@ class Train:
             self.epoch()
             save_example(self.generator, self.val_loader, epoch, "eval", device)
             plot_losses(self.losses, "losses/second")
-        save_models(self.generator, self.discriminator, epoch)
+            save_models(self.generator, self.discriminator, epoch)
 
     def load_models(self, epoch_num):
         self.generator.load_state_dict(torch.load(f"models/generator{epoch_num}.pt"))
@@ -205,7 +205,7 @@ class Train:
         
 def run():
     t = Train()
-    # t.load_models(9)
+    t.load_models(9)
     t.run_epochs(10, 10)
 
 if __name__ == "__main__":

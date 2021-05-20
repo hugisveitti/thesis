@@ -80,11 +80,14 @@ class Generator(nn.Module):
 
 
 def test():
-    g = Generator(14, 3)
-    img = torch.randn((4, 14, config.IMAGE_WIDTH, config.IMAGE_HEIGHT))
-    fake = g(img)
-    print(a.shape)
-    print(fake.shape)
+    device = "cuda"
+    g = Generator(14, 3).to(device)
+    img = torch.randn((4, 14, config.IMAGE_WIDTH, config.IMAGE_HEIGHT)).to(device)
+    with torch.cuda.amp.autocast():
+        fake = g(img)
+        print(img.shape)
+        print(fake.shape)
+        print(fake)
 
 
 if __name__ == "__main__":

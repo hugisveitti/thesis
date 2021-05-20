@@ -32,9 +32,7 @@ class SatelliteDataset(Dataset):
     
     def open_img(self, idx):
         with Image.open(os.path.join(self.root_dir, "rgb", self.rgb_files[idx])) as img:
-            img = toTensor(img)[:3,:,:]#.type(torch.HalfTensor)
-            #img = torch.Tensor(np.array(img)[:,:,:3])
-            #img = torch.movedim(img, -1, 0)
+            img = toTensor(img)[:3,:,:]
             img = normalize(img)
             img = img.type(config.torch_type)
         return img

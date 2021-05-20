@@ -7,6 +7,7 @@ from PIL import Image
 import json
 import torchvision.transforms as T
 
+import config
 
 transform_image = T.Compose(
     [
@@ -23,8 +24,9 @@ class MyDataset(Dataset):
     def __init__(self, root_dir, num_samples=None):
         self.num_samples = num_samples
         self.root_dir = root_dir
-        with open(root_dir + "rgb_files.json") as f:
-            self.files = json.load(f)
+        self.files = os.listdir(os.path.join(root_dir, "rgb"))
+        # with open(root_dir + "rgb_files.json") as f:
+        #     self.files = json.load(f)
        # self.classes = np.load(root_dir + "classes.npz")
 
     def __len__(self):
@@ -50,6 +52,7 @@ class MyDataset(Dataset):
             input_classes =  c["arr_0"]  #self.classes[fn]
             input_classes = torch.from_numpy(input_classes).type(torch.HalfTensor)
             input_classes = torch.movedim(input_classes, 2, 0)
+            input_classes = input_classes.type(config.tensor_type)
             
         return input_classes, target_img
 
