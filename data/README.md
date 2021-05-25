@@ -46,3 +46,7 @@ The landcover classes are all saved together in a classes.npz file. The 11000 RG
 ### Time
 
 I think creating the images takes about two hours on my laptop.
+
+## More ideas
+
+I did try and normalize the images and save them as tensors to be loaded straight into memory without preprocessing to see if it would be faster but it didn't seem to matter.

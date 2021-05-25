@@ -59,3 +59,5 @@ After 2 epochs:
 ![2epoch](images/gen_2.png)
 
 I also just used 1000 samples instead of all 11000, so training more could give some results.
+
+The checkerboard effect could be removed with more training and utilizing perception loss, by using the VGG model or something similar for a style loss as in https://www.ijcai.org/proceedings/2019/0433.pdf
