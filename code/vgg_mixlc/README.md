@@ -10,6 +10,10 @@ The satellite and landcover data as in the other examples. Each sample uses two 
 
 ![target example](images/input_example.png)
 
+Here I illustrate how the data samples are created:
+
+![data creation illustration](images/data_creation.png)
+
 ## Arcitechture
 
 ![arcitechture](images/arcitechture.png)
@@ -29,7 +33,7 @@ The discriminator uses the patchGAN idea. That is we downsample and add features
 
 We use a MSE loss for the discriminator patches. We use l1 as the pixel loss. We also use the VGG16 and the output of the relu_3_3 as a feature loss and a MSE loss between the target and generated image.
 
-The VGG16 idea is from https://deepai.org/machine-learning-glossary-and-terms/perceptual-loss-function
+The VGG16 idea is from https://deepai.org/machine-learning-glossary-and-terms/perceptual-loss-function, this idea is used in https://www.ijcai.org/proceedings/2019/0433.pdf
 
 ### Time
 
