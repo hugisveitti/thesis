@@ -12,8 +12,6 @@ from dataset import SatelliteDataset
 from utils import save_example
 
 
-
-
 device = "cuda" 
 LEARNING_RATE = 0.0002
 scaler = torch.cuda.amp.GradScaler()
@@ -26,6 +24,7 @@ class_loss_fn = nn.CrossEntropyLoss()
 STYLE_LAMBDA = 0.45
 ADV_LAMBDA = 0.05
 PIXEL_LAMBDA = 0.5
+ID_LAMBDA = 0.5
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_dir", type=str, default="../../data")
@@ -38,7 +37,7 @@ parser.add_argument("--losses_dir", type=str, default="losses")
 parser.add_argument("--models_dir", type=str, default="models/")
 
 args = parser.parse_args()
-losses_names =  ["d_fake_loss","d_real_loss","d_lc_fake_loss","d_lc_real_loss","g_adv_loss","g_pixel_loss","g_style_loss"]
+losses_names =  ["d_fake_loss","d_real_loss","d_lc_fake_loss","d_lc_real_loss","g_adv_loss","g_pixel_loss","g_style_loss","g_pixel_id_loss","g_style_id_loss"]
 
 def style_loss_fn(phi1, phi2):
     batch_size, c, h, w = phi1.shape
@@ -142,10 +141,17 @@ class Train:
 
                 g_style_loss = style_loss_fn(fake_img, rgb_ab)
 
+                id_img = self.generator(rgb_a, lc_a)
+                g_pixel_id_loss = pixel_loss_fn(id_img, rgb_a)
+                g_style_id_loss = style_loss_fn(id_img, rgb_a)
+
                 g_loss = (
                     (g_adv_loss * ADV_LAMBDA)
                     + (g_style_loss * STYLE_LAMBDA)
                     + (g_pixel_loss * PIXEL_LAMBDA)
+                    + (
+                        (g_pixel_id_loss + g_style_id_loss) * ID_LAMBDA
+                    )
                 )
 
             scaler.scale(g_loss).backward()
@@ -185,10 +191,11 @@ class Train:
         if os.path.exists(eval_dir):
             start_epoch = len(os.listdir(eval_dir)) + 1
         num_epochs = args.num_epochs
-        print("args", args)
-        print("num epochs",num_epochs)
-        print("start epoch", start_epoch)
-        for epoch in range(start_epoch, start_epoch + num_epochs+1):
+        print("arguments", args)
+
+        save_example(self.generator, self.discriminator, eval_dir, 0, self.val_loader, device)
+        
+        for epoch in range(start_epoch, start_epoch + num_epochs):
             self.loop_description = f"{epoch} / {num_epochs + start_epoch - 1}"
             self.epoch()
             save_example(self.generator, self.discriminator, eval_dir, epoch, self.val_loader, device)

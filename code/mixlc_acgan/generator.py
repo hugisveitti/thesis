@@ -16,7 +16,7 @@ class Block(nn.Module):
         self.block = nn.Sequential(
             conv_layer,
             nn.BatchNorm2d(out_channels),
-            nn.Dropout2d(0.5), # Batch norm acts as noise
+            nn.Dropout2d(0.5), # Dropout acts as noise
             activation,
         )
 

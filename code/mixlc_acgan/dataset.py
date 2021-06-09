@@ -7,6 +7,10 @@ import os
 
 import config
 
+flip_horizontal = T.RandomHorizontalFlip(p=1)
+
+flip_vertical = T.RandomVerticalFlip(p=1)
+
 
 normalize = T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 toTensor = T.ToTensor()
@@ -81,17 +85,31 @@ class SatelliteDataset(Dataset):
         rgb_b = self.open_img(idx_b)
         lc_b = self.open_classes(idx_b)
 
+        if np.random.random() < 0.5:
+            rgb_a = flip_horizontal(rgb_a)
+            rgb_b = flip_horizontal(rgb_b)
+            lc_a = flip_horizontal(lc_a)
+            lc_b = flip_horizontal(lc_b)
+
+        if np.random.random() < 0.5:
+            rgb_a = flip_vertical(rgb_a)
+            rgb_b = flip_vertical(rgb_b)
+            lc_a = flip_vertical(lc_a)
+            lc_b = flip_vertical(lc_b)
+
         rgb_ab = rgb_a.clone()
         lc_ab = lc_a.clone()
         num_inpaints = np.random.randint(5,15)
         for _ in range(num_inpaints):
             self.create_modification(rgb_ab, lc_ab, rgb_b, lc_b)
 
+            
+
 
         # use a third sample as the "real" sample for the discriminator ?
         return rgb_a, lc_a, lc_ab, rgb_ab
 
-        # return rgb_a, rgb_b, rgb_ab, lc_a, lc_b, lc_ab
+      #  return rgb_a, rgb_b, rgb_ab, lc_a, lc_b, lc_ab
 
 
 def test():
@@ -132,7 +150,7 @@ def test():
         ax[1,2].imshow(lc_ab)
         ax[1,2].set_title("lc_ab (input)")
 
-        folder = "images"
+        folder = "testsetup"
         if not os.path.exists(folder):
             os.mkdir("images")
 
@@ -154,5 +172,5 @@ def test_utils():
     save_example(g,discriminator, "testsetup", 0, l, device)
 
 if __name__ == "__main__":
-    # test()
-    test_utils()
+    test()
+    #test_utils()

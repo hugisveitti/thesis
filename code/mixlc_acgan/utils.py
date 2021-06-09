@@ -5,8 +5,16 @@ import matplotlib.pyplot as plt
 from datautils import unprocess, create_img_from_classes
 
 def save_example(generator, discriminator, folder, epoch, loader, device):
+    # In pix2pix they talk about using the dropout as the random noise
     generator.eval()
+    for m in generator.modules():
+        if m.__class__.__name__.startswith('Dropout'):
+            m.train()
     discriminator.eval()
+    for m in discriminator.modules():
+        if m.__class__.__name__.startswith('Dropout'):
+            m.train()
+
     if not os.path.exists(folder):
         os.mkdir(folder)
 
