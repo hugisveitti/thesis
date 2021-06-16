@@ -62,6 +62,13 @@ while the discriminator uses all losses equally.
 
 The generator does not seem to be fooling the discriminator.
 
+The style reconstruction loss is based off instructions from https://arxiv.org/pdf/1603.08155.pdf, where we define the Gram matrix G_j where phi_j is the output of the relu3_3 in this case.
+Then the style reconstruction loss is the squared Frobenius norm of the difference between the Gram matrices of the output and target images.
+
+I think I could also add to that the output of other activation functions, that is more than relu3_3.
+
+I then got the idea of also having an id_loss, where id_img = generator(rgb_a, lc_a) and the losses are l1loss(id_img, rgb_a), and the vgg style loss for style_loss(id_img, rgb_a).
+
 ## Results
 
 I trained on the slurm cluster for 20 epochs. Each epoch took about 38 minutes.

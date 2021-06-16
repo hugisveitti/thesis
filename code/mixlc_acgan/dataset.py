@@ -38,38 +38,41 @@ class SatelliteDataset(Dataset):
             classes = classes.type(config.tensor_type)
         return classes
 
-    def create_modification(self, rgb_ab, lc_ab, rgb_b, lc_b):
+    def create_modification(self, rgb_b, rgb_ab, lc_a, lc_b, lc_ab, lc_b_mask):
         
-        inpaint_size_w = np.random.randint(32, 64)
-        inpaint_size_h = np.random.randint(32,64)
+        mask_size_w = np.random.randint(32, 64)
+        mask_size_h = np.random.randint(32, 64)
         
-        r_w = np.random.randint(rgb_ab.shape[1] - inpaint_size_w)
-        r_h = np.random.randint(rgb_ab.shape[2] - inpaint_size_h)
+        r_w = np.random.randint(rgb_ab.shape[1] - mask_size_w)
+        r_h = np.random.randint(rgb_ab.shape[2] - mask_size_h)
 
-        for i in range(r_w, r_w + inpaint_size_w):
-            for j in range(r_h, r_h + inpaint_size_h):
-                if not torch.equal(lc_ab[:,i,j] , lc_b[:,i,j]):
-                    lc_ab[:,i,j] = lc_b[:,i,j]
+        for i in range(r_w, r_w + mask_size_w):
+            for j in range(r_h, r_h + mask_size_h):
+                if not torch.equal(lc_a[:,i,j] , lc_b[:,i,j]):
+                    lc_b_mask[:,i,j] = lc_b[:,i,j]
                     rgb_ab[:,i,j] = rgb_b[:,i,j]
+                    lc_ab[:,i,j] = lc_b[:,i,j]
+        
 
-        return 
+
+        return [r_w, r_h, mask_size_w, mask_size_h]
         # Just for illustration
         # put boxes around changed area.
-        for i in range(r_w, r_w + inpaint_size_w):
+        for i in range(r_w, r_w + mask_size_w):
             rgb_ab[:,i,r_h] = torch.tensor([1,1,1])
-            rgb_ab[:,i,r_h + inpaint_size_h] = torch.tensor([1,1,1])
+            rgb_ab[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
             lc_ab[:,i,r_h] = torch.zeros(14)
             lc_ab[0,i,r_h] = 1
-            lc_ab[:,i,r_h+inpaint_size_h] = torch.zeros(14)
-            lc_ab[0,i,r_h + inpaint_size_h] = 1
+            lc_ab[:,i,r_h+mask_size_h] = torch.zeros(14)
+            lc_ab[0,i,r_h + mask_size_h] = 1
         
-        for j in range(r_h, r_h + inpaint_size_h):
+        for j in range(r_h, r_h + mask_size_h):
             rgb_ab[:, r_w, j] = torch.tensor([1,1,1])
-            rgb_ab[:, r_w + inpaint_size_w, j] = torch.tensor([1,1,1])
+            rgb_ab[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
             lc_ab[:,r_w,j] = torch.zeros(14)
             lc_ab[0,r_w,j] = 1
-            lc_ab[:,r_w+inpaint_size_w, j] = torch.zeros(14)
-            lc_ab[0,r_w + inpaint_size_w,j] = 1
+            lc_ab[:,r_w+mask_size_w, j] = torch.zeros(14)
+            lc_ab[0,r_w + mask_size_w,j] = 1
 
 
 
@@ -97,19 +100,20 @@ class SatelliteDataset(Dataset):
             lc_a = flip_vertical(lc_a)
             lc_b = flip_vertical(lc_b)
 
+        lc_b_mask = torch.zeros_like(lc_b)
         rgb_ab = rgb_a.clone()
         lc_ab = lc_a.clone()
-        num_inpaints = np.random.randint(5,15)
+        num_inpaints = 8 #np.random.randint(5,15)
+        masked_areas = []
         for _ in range(num_inpaints):
-            self.create_modification(rgb_ab, lc_ab, rgb_b, lc_b)
+            masked_area = self.create_modification(rgb_b, rgb_ab, lc_a, lc_b, lc_b_mask, lc_ab)
+            masked_areas.append(masked_area)
 
-            
-
-
+      
         # use a third sample as the "real" sample for the discriminator ?
-        return rgb_a, lc_a, lc_ab, rgb_ab
+     #   return rgb_a, lc_a, lc_b_mask, rgb_ab
 
-      #  return rgb_a, rgb_b, rgb_ab, lc_a, lc_b, lc_ab
+        return rgb_a, rgb_b, rgb_ab, lc_a, lc_b, lc_b_mask, lc_ab, masked_areas
 
 
 def test():
@@ -118,16 +122,19 @@ def test():
 
     ds = SatelliteDataset("../../data/train")
     loader = DataLoader(ds, 1)
-    for rgb_a, rgb_b, rgb_ab, lc_a, lc_b, lc_ab in loader:
+    i = 0
+    num_examples = 5
+    
+    for rgb_a, rgb_b, rgb_ab, lc_a, lc_b, lc_b_mask, masked_areas in loader:
         rgb_a = unprocess(rgb_a)
         rgb_b = unprocess(rgb_b)
         rgb_ab = unprocess(rgb_ab)
         lc_a = unprocess(lc_a, False)
         lc_b = unprocess(lc_b, False)
-        lc_ab = unprocess(lc_ab, False)
+        lc_b_mask = unprocess(lc_b_mask, False)
         lc_a = create_img_from_classes(lc_a)
         lc_b = create_img_from_classes(lc_b)
-        lc_ab = create_img_from_classes(lc_ab)
+        lc_b_mask = create_img_from_classes(lc_b_mask)
 
         fig, ax = plt.subplots(2,3, figsize=(12,8))
         fig.tight_layout()
@@ -142,21 +149,23 @@ def test():
         ax[0,2].set_title("rgb_b (target)")
 
         ax[1,0].imshow(lc_a)
-        ax[1,0].set_title("lc_a")
+        ax[1,0].set_title("lc_a (input)")
 
         ax[1,1].imshow(lc_b)
         ax[1,1].set_title("lc_b")
 
-        ax[1,2].imshow(lc_ab)
-        ax[1,2].set_title("lc_ab (input)")
+        ax[1,2].imshow(lc_b_mask)
+        ax[1,2].set_title("lc_b_mask (input)")
 
         folder = "testsetup"
         if not os.path.exists(folder):
             os.mkdir("images")
 
-        plt.savefig(folder + "/input_example.png")
+        plt.savefig(folder + f"/input_example_{i}.png")
 
-        break
+        i += 1
+        if i == num_examples:
+            break
 
 def test_utils():
     from utils import save_example
@@ -172,5 +181,5 @@ def test_utils():
     save_example(g,discriminator, "testsetup", 0, l, device)
 
 if __name__ == "__main__":
-    test()
-    #test_utils()
+    #test()
+    test_utils()

@@ -2,6 +2,7 @@ import numpy as np
 import ast
 import os
 
+
 lc_pixels = {
     0: str([255, 255, 255, 255]),
     1: str([210, 0, 0, 255]),
@@ -40,9 +41,13 @@ lc_labels_classes = {
 # to revert to an image
 def create_img_from_classes(img_classes):
     img = np.zeros((img_classes.shape[0], img_classes.shape[1], 4), dtype=np.uint8)
+    
     for i in range(img.shape[0]):
         for j in range(img.shape[1]):
-            img[i,j] = ast.literal_eval(lc_pixels[np.argmax(img_classes[i,j])])
+            if np.equal(img_classes[i,j], np.zeros(14)).all():
+                img[i,j, :] = [0, 0, 0, 255]
+            else:
+                img[i,j] = ast.literal_eval(lc_pixels[np.argmax(img_classes[i,j])])
     return img
 
 def unprocess(ma, is_img=True):
