@@ -71,12 +71,4 @@ I then got the idea of also having an id_loss, where id_img = generator(rgb_a, l
 
 ## Results
 
-I trained on the slurm cluster for 20 epochs. Each epoch took about 38 minutes.
-
-After 1 epoch
-
-![1 epoch](images/gen_1.png)
-
-After 20 epochs
-
-![20 epochs](images/gen_20.png)
+https://drive.google.com/drive/u/0/folders/1-4BSShFdJD7AqlbD92gMyJZSMn_YoQ4o

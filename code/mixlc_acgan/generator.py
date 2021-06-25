@@ -43,11 +43,11 @@ class ChannelNetwork(nn.Module):
         self.bottleneck1 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
         self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
 
-        self.up4 = Block(1024 * 2, 512, down=False)
+        self.up4 = Block(bottleneck_features * 2, 512, down=False)
         self.up3 = Block(512 * 2, 256, down=False)
         self.up2 = Block(256 * 2, 128, down=False)
         self.up1 = Block(128 * 2, 64, down=False)
-        self.final = Block(64 * 2, 64, stride=1)
+        self.final = Block(64 * 2, 64, stride=1, padding=1, kernel_size=3)
 
     def forward(self, x):
         d1 = self.first_layer(x)
@@ -56,14 +56,16 @@ class ChannelNetwork(nn.Module):
         d4 = self.down3(d3)
         d5 = self.down4(d4)
 
-        x = self.bottleneck2(d5)
+        x = self.bottleneck1(d5)
+        
         x = self.bottleneck2(x)
         
         x = self.up4(torch.cat([d5, x], dim=1))
         x = self.up3(torch.cat([d4, x], dim=1))
         x = self.up2(torch.cat([d3, x], dim=1))
         x = self.up1(torch.cat([d2, x], dim=1))
-        return self.final(torch.cat([d1, x], dim=1))
+        x = self.final(torch.cat([d1, x], dim=1))
+        return x
 
 class Generator(nn.Module):
 
@@ -76,7 +78,7 @@ class Generator(nn.Module):
         self.output_network = nn.Sequential(
             Block(64 * 3, 64, down=False),
             Block(64, 64, kernel_size=3, stride=1),
-            nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=2),
+            nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=1),
             nn.Tanh()
         )
     

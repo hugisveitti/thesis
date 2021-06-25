@@ -59,7 +59,8 @@ class Train:
 
         self.generator = Generator().to(device)
         self.discriminator = Discriminator().to(device)
-
+        print(self.generator)
+        print(self.discriminator)
         # betas? 0.5 and 0.999 are used in pix2pix
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
@@ -179,7 +180,7 @@ class Train:
                       # maybe not use the rgb_a is the classes are the same.
                       local_gen_area = fake_img[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
                       rgb_ab_local_area = rgb_ab[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
-                      local_loss += pixel_loss_fn(local_gen_area, rgb_b_local_area)
+                      local_loss += pixel_loss_fn(local_gen_area, rgb_ab_local_area)
                 
 
                 local_loss = local_loss / args.batch_size

@@ -31,3 +31,10 @@ colab/
 
 test_images/
 losses/
+test_eval/
+
+*.lnk
+
+testmodels/
+
+results4/
