@@ -51,6 +51,6 @@ def create_img_from_classes(img_classes):
     return img
 
 def unprocess(ma):
-    ma = np.array(ma)[0]
+    ma = np.array(ma, dtype=np.float32)[0]
     ma = np.moveaxis(ma, 0, -1)
     return ma
