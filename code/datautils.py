@@ -42,11 +42,15 @@ def create_img_from_classes(img_classes):
     img = np.zeros((img_classes.shape[0], img_classes.shape[1], 4), dtype=np.uint8)
     for i in range(img.shape[0]):
         for j in range(img.shape[1]):
-            img[i,j] = ast.literal_eval(lc_pixels[np.argmax(img_classes[i,j])])
+            if torch.equal(img_classes[i,j], torch.zeros(14)).all():
+                img[i,j] == [0,0,0, 255]
+            else:
+                img[i,j] = ast.literal_eval(lc_pixels[np.argmax(img_classes[i,j])])
     return img
 
 def unprocess(ma, is_img=True):
-    ma = np.array(ma)[0]
+    if len(ma.shape) == 4:
+        ma = np.array(ma)[0]
     ma = np.moveaxis(ma, 0, -1)
     if is_img:
         ma = ma*0.5 + 0.5

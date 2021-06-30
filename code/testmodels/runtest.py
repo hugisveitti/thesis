@@ -10,13 +10,26 @@ normalize = T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 
 from ..mixlc.generator import Generator as MixlcGenerator
 from ..datautils import unprocess, create_img_from_classes, lc_labels_classes
+from ..mixlc_acgan.generator import Generator as MixlcAcganGen
 
-def test(model_path, data_dir, start = 96, size = 64, idx=None):
-    print("Hello from test")
-    gen_type = "mix_lc"
+def test(gen_type, model_path, data_dir, start = 96, size = 64, idx=None):
   
-    mixlc_generator = MixlcGenerator()
-    mixlc_generator.load_state_dict(torch.load(model_path))
+    if gen_type == "mixlc":
+        generator = MixlcGenerator()
+        generator.load_state_dict(torch.load(model_path))
+    elif gen_type == "mixlc_acgan":
+        generator = MixlcAcganGen()
+        generator.load_state_dict(torch.load(model_path))
+    else:
+        raise Exception("generator type not supported")
+
+    # in pix-to-pix they use dropout as the random noise
+    # in mixlc_acgan I do the same
+    generator.eval()
+    for m in generator.modules():
+        if m.__class__.__name__.startswith('Dropout'):
+            m.train()
+
     d = "val"
     rgb_dir = os.path.join(data_dir, d, "rgb")
     lc_dir = os.path.join(data_dir, d, "lc_classes")
@@ -55,7 +68,7 @@ def test(model_path, data_dir, start = 96, size = 64, idx=None):
                 new_classes[:,:, i, j] = torch.zeros(14)
                 new_classes[:, c, i, j] = torch.tensor(1).type(torch.FloatTensor)
     
-        new_gen_rgb = mixlc_generator(rgb, new_classes)
+        new_gen_rgb = generator(rgb, new_classes)
 
         new_classes = unprocess(new_classes.detach(), False)
         new_classes = create_img_from_classes(new_classes)
@@ -65,7 +78,7 @@ def test(model_path, data_dir, start = 96, size = 64, idx=None):
         all_pairs.append(pair)
 
 
-    gen_rgb = mixlc_generator(rgb, classes)
+    gen_rgb = generator(rgb, classes)
     gen_rgb = unprocess(gen_rgb.detach())
 
 
@@ -80,14 +93,18 @@ def test(model_path, data_dir, start = 96, size = 64, idx=None):
 
     img_dir = "test_images"
     if not os.path.exists(img_dir):
-            os.mkdir(img_dir)
+        os.mkdir(img_dir)
 
-    curr_img_dir = os.path.join(img_dir, fn + "_" + gen_type)
+    if not os.path.exists(os.path.join(img_dir, gen_type)):
+        os.mkdir(os.path.join(img_dir, gen_type))
+
+    curr_img_dir = os.path.join(img_dir, gen_type, fn)
     if not os.path.exists(curr_img_dir):
         os.mkdir(curr_img_dir)
 
     for i, (rgb, classes) in enumerate(all_pairs):
         fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+        fig.tight_layout()
         if i == len(all_pairs) - 2:
             ax[0].set_title("unchanged lc")
             ax[1].set_title("original rgb")
