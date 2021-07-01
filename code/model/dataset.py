@@ -61,8 +61,8 @@ class SatelliteDataset(Dataset):
         for i in range(r_w, r_w + mask_size_w):
             rgb_b[:,i,r_h] = torch.tensor([1,1,1])
             rgb_b[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
-            rgb_ab[:, r_w, j] = torch.tensor([1,1,1])
-            rgb_ab[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
+            rgb_ab[:,i,r_h] = torch.tensor([1,1,1])
+            rgb_ab[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
             lc_ab[:,i,r_h] = torch.zeros(14)
             lc_ab[0,i,r_h] = 1
             lc_ab[:,i,r_h+mask_size_h] = torch.zeros(14)
@@ -125,9 +125,9 @@ def test():
     import matplotlib.pyplot as plt
 
     ds = SatelliteDataset("../../data/val")
-    loader = DataLoader(ds, 1)
+    loader = DataLoader(ds, 4)
     i = 0
-    num_examples = 1
+    num_examples = 5
     
     for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
         rgb_a = unprocess(rgb_a)

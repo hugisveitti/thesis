@@ -27,9 +27,9 @@ STYLE_LAMBDA = 0.
 ADV_LAMBDA = 0.5
 PIXEL_LAMBDA = 0.50
 ID_LAMBDA = 0.5
-LOCAL_STYLE_LAMBDA = 0.5
+LOCAL_STYLE_LAMBDA = 0.9
 LOCAL_PIXEL_LAMBDA = 0.
-G_LC_LAMBDA = 0.5
+G_LC_LAMBDA = 0.9
 
 
 parser = argparse.ArgumentParser()
@@ -42,9 +42,12 @@ parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--losses_dir", type=str, default="losses")
 parser.add_argument("--models_dir", type=str, default="models/")
 parser.add_argument("--use_sigmoid", type=bool, default=False)
+parser.add_argument("--log_file", type=str, default="training_log.txt")
 
 args = parser.parse_args()
 losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_style_loss","g_pixel_id_loss","g_style_id_loss", "g_gen_lc_loss", "local_style_loss", "local_pixel_loss"]
+
+log_file = args.log_file
 
 def style_loss_fn2(phi1, phi2, vgg_activation):
 
@@ -118,6 +121,22 @@ class Train:
         print("LOCAL_PIXEL_LAMBDA", LOCAL_PIXEL_LAMBDA)
         print("G_LC_LAMBDA", G_LC_LAMBDA)
         print("########\n")
+
+        log_s = f"""
+########\nLambdas:
+STYLE_LAMBDA: {STYLE_LAMBDA}
+ADV_LAMBDA: {ADV_LAMBDA}
+PIXEL_LAMBDA: {PIXEL_LAMBDA}
+ID_LAMBDA: {ID_LAMBDA}
+LOCAL_STYLE_LAMBDA: {LOCAL_STYLE_LAMBDA}
+LOCAL_PIXEL_LAMBDA: {LOCAL_PIXEL_LAMBDA}
+G_LC_LAMBDA: {G_LC_LAMBDA}
+########\n
+        """
+
+        with open(log_file, "a") as f:
+            f.write(log_s)
+        
 
     def epoch(self):
 
@@ -203,8 +222,8 @@ class Train:
                     feature_rgb_a = self.relu3_3(rgb_a)
                     g_style_id_loss = style_loss_fn(feature_id_img, feature_rgb_a)
 
-                local_style_loss = 0# torch.tensor(0)
-                local_pixel_loss = 0#torch.tensor(0)
+                local_style_loss = 0
+                local_pixel_loss = 0
 
                 # set changed places to 0 
                 fake_img_unchanged_area = fake_img.clone()
@@ -213,7 +232,7 @@ class Train:
                 # look individually at changed area and do a pixel loss
                 # Not sure what type of loss is best,
                 # Maybe using some kind of local discriminator would be better, like in local and global inpainting paper
-                for j in range(args.batch_size):
+                for j in range(len(masked_areas[0][0])):
                     for i in range(len(masked_areas)):
 
                         r_w = masked_areas[i][0][j]
@@ -306,20 +325,21 @@ class Train:
 
 
     def train(self):
-
-        
         eval_dir = args.eval_dir
-        save_example(self.generator, self.discriminator, eval_dir, 0, self.val_loader, device)
+        num_save_examples = 5
+        save_example(self.generator, self.discriminator, eval_dir, 0, self.val_loader, device, num_save_examples)
         if os.path.exists(eval_dir) and args.load_models:
-            start_epoch = len(os.listdir(eval_dir))
+            start_epoch = int(len(os.listdir(eval_dir)) / num_save_examples)
         else:
             start_epoch = 1
         num_epochs = args.num_epochs
+        with open(log_file, "a") as f:
+            f.write(f"start epoch {start_epoch}\n\n\n")
         
         for epoch in range(start_epoch, start_epoch + num_epochs):
             self.loop_description = f"{epoch} / {num_epochs + start_epoch - 1}"
             self.epoch()
-            save_example(self.generator, self.discriminator, eval_dir, epoch, self.val_loader, device)
+            save_example(self.generator, self.discriminator, eval_dir, epoch, self.val_loader, device, num_save_examples)
             self.save_models()
             self.save_losses()
 
