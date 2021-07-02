@@ -28,8 +28,20 @@ concat the lc_ab and the mask and input to the lc_network
 
 ![generator loss](images/generator_losses.png)
 
+The lambdas
+
+- STYLE_LAMBDA = 0.
+- ADV_LAMBDA = 0.5
+- PIXEL_LAMBDA = 0.50
+- ID_LAMBDA = 0.5
+- LOCAL_STYLE_LAMBDA = 0.9
+- LOCAL_PIXEL_LAMBDA = 0.
+- G_LC_LAMBDA = 0.9
+
+Maybe change the losses or pretrain with only ID_loss?
+
 ### Discriminator loss
 
 ![discriminator loss](images/discriminator_losses.png)
 
-All losses count the same
+All losses count the same for the discriminator.
