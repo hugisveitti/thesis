@@ -41,3 +41,5 @@ results/
 results4/
 
 *.qgz
+
+training_log*
