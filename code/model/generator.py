@@ -71,22 +71,18 @@ class Generator(nn.Module):
 
     def __init__(self):
         super(Generator, self).__init__()
-        self.rgb_network = ChannelNetwork(in_channels = 3)
-        self.lc_network = ChannelNetwork(in_channels = 14 + 1)
-       # self.lc_mask_network = ChannelNetwork(in_channels = 1)
+        self.unet = ChannelNetwork(in_channels = 3 + 14 + 1)
 
         self.output_network = nn.Sequential(
-            Block(64 * 2, 64, down=False),
+            Block(64 , 64, down=False),
             Block(64, 64, kernel_size=3, stride=1),
             nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=1),
             nn.Sigmoid()
         )
     
     def forward(self, rgb, lc, lc_mask):
-        rgb = self.rgb_network(rgb)
-        lc = self.lc_network(torch.cat([lc, lc_mask], dim=1))
-      #  lc_mask = self.lc_mask_network(lc_mask)
-        return self.output_network(torch.cat([rgb, lc], dim=1))
+        x = self.unet(torch.cat([lc, lc_mask, rgb], dim=1))
+        return self.output_network(x)
 
 
 def test():

@@ -6,13 +6,14 @@ import os
 import argparse
 import json
 
+
 from generator import Generator
 from discriminator import Discriminator
 from dataset import SatelliteDataset
 from deterministic_dataset import DeterministicSatelliteDataset
 from utils import save_example
 import config
-
+from plot_losses import plot_losses
 
 device = "cuda"
 LEARNING_RATE = 0.0002
@@ -81,11 +82,14 @@ class Train:
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
-        d = SatelliteDataset(os.path.join(data_dir,"train"))
+        d = SatelliteDataset(os.path.join(data_dir,"train"),11000)
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
-        self.val_loader = DataLoader(d_val, 1)
+        det_d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
+        self.det_val_loader = DataLoader(det_d_val, 1)
+
+        d_val = SatelliteDataset(os.path.join(data_dir,"val"))
+        self.val_loader = DataLoader(d_val, batch_size = args.batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
         print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
@@ -100,17 +104,26 @@ class Train:
             self.load_models()
 
         self.losses = {}
+        self.val_losses = {}
         for name in losses_names:
             self.losses[name] = []
+            self.val_losses[name] = []
 
         if not os.path.exists(args.losses_dir):
             os.mkdir(args.losses_dir)
+            os.mkdir(os.path.join(args.losses_dir, "train"))
+            os.mkdir(os.path.join(args.losses_dir, "val"))
+
         
-        self.losses_file = os.path.join(args.losses_dir, "losses.json")
+        self.losses_file = os.path.join(args.losses_dir, "train", "losses.json")
+        self.val_losses_file = os.path.join(args.losses_dir, "val", "losses.json")
         if os.path.exists(self.losses_file) and args.load_models:
             with open(self.losses_file, "r") as f:
                 self.losses = json.load(f)
 
+        if os.path.exists(self.val_losses_file) and args.load_models:
+            with open(self.val_losses_file, "r") as f:
+                self.val_losses = json.load(f)
 
         print("\n########\nLambdas:")
         print("STYLE_LAMBDA",STYLE_LAMBDA)
@@ -253,8 +266,9 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                         if LOCAL_PIXEL_LAMBDA != 0:
                             local_pixel_loss += pixel_loss_fn(local_gen_area, rgb_ab_local_area)
 
-                        fake_img_unchanged_area[j, :, r_w:r_w + mask_size_w, r_h:r_h + mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
-                        rgb_a_unchanged_area[j, :, r_w:r_w + mask_size_w, r_h:r_h + mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
+                        fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h+ (config.local_area_margin * 2))
+                        rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+
 
                 if local_style_loss == 0:
                     local_style_loss = torch.tensor(0)
@@ -305,6 +319,141 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
         for name in losses_names:
             self.losses[name].append(epoch_losses[name] / total)
 
+    def evaluate(self):
+        self.generator.eval()
+        self.discriminator.eval()
+        for m in self.generator.modules():
+            if m.__class__.__name__.startswith('Dropout'):
+                m.train()
+
+
+        loop = tqdm(self.val_loader, position=0)
+        loop.set_description(f"{self.loop_description} evaluation")
+        
+        epoch_losses = {}
+        for name in losses_names:
+            epoch_losses[name] = 0
+        total = 0
+
+        for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loop:
+            rgb_a, rgb_ab, lc_a, lc_b, binary_mask = rgb_a.to(device), rgb_ab.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device)
+            lc_ab = lc_ab.to(device)
+
+        
+            with torch.cuda.amp.autocast():
+                fake_img = self.generator(rgb_a, lc_ab, binary_mask)
+
+                _, d_fake = self.discriminator(fake_img)
+                # use sigmoid ?
+                # maybe use random image as rgb_a
+                gen_lc_a, d_real = self.discriminator(rgb_a)
+
+                if args.use_sigmoid:
+                    d_fake = torch.sigmoid(d_fake)
+                    d_real = torch.sigmoid(d_real)
+
+        
+                d_fake_loss = adv_loss_fn(d_fake, torch.zeros_like(d_fake))
+                d_real_loss = adv_loss_fn(d_real, torch.ones_like(d_real))
+
+               
+                d_lc_real_loss = class_loss_fn(gen_lc_a, torch.argmax(lc_a, 1))
+                d_loss = (d_fake_loss + d_real_loss + d_lc_real_loss) / 2
+            
+
+                fake_img = self.generator(rgb_a, lc_ab, binary_mask)
+                lc_gen_fake, d_fake = self.discriminator(fake_img)
+                if args.use_sigmoid:
+                    torch.sigmoid(d_fake)
+
+
+                g_adv_loss = adv_loss_fn(d_fake, torch.ones_like(d_fake))
+
+
+                g_gen_lc_loss = class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
+                
+
+                id_img = self.generator(rgb_a, lc_a, torch.zeros_like(binary_mask).to(device))
+                g_pixel_id_loss = pixel_loss_fn(id_img, rgb_a)
+                feature_id_img = self.relu3_3(id_img)
+                feature_rgb_a = self.relu3_3(rgb_a)
+                g_style_id_loss = style_loss_fn(feature_id_img, feature_rgb_a)
+
+                local_style_loss = 0
+                local_pixel_loss = 0
+
+                # set changed places to 0 
+                fake_img_unchanged_area = fake_img.clone()
+                rgb_a_unchanged_area = rgb_a.clone()
+
+                # look individually at changed area and do a pixel loss
+                # Not sure what type of loss is best,
+                # Maybe using some kind of local discriminator would be better, like in local and global inpainting paper
+                for j in range(len(masked_areas[0][0])):
+                    for i in range(len(masked_areas)):
+
+                        r_w = masked_areas[i][0][j]
+                        r_h = masked_areas[i][1][j]
+                        mask_size_w = masked_areas[i][2][j]
+                        mask_size_h = masked_areas[i][3][j]
+                        
+                        #r_w, r_h, mask_size_w, mask_size_h = masked_area
+                        # maybe not use the rgb_a is the classes are the same.
+                        local_gen_area = fake_img[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
+                        rgb_ab_local_area = rgb_ab[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
+                        feature_local_gen = self.relu3_3(local_gen_area.reshape(1, local_gen_area.shape[0], local_gen_area.shape[1], local_gen_area.shape[2]))
+                        feature_local_rgb_ab = self.relu3_3(rgb_ab_local_area.reshape(1, rgb_ab_local_area.shape[0], rgb_ab_local_area.shape[1], rgb_ab_local_area.shape[2]))
+                        
+                        local_style_loss += style_loss_fn(feature_local_gen, feature_local_rgb_ab)
+                        
+                        local_pixel_loss += pixel_loss_fn(local_gen_area, rgb_ab_local_area)
+
+
+                        fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h+ (config.local_area_margin * 2))
+                        rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+
+
+
+
+                g_pixel_loss = pixel_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
+                
+
+
+                fake_img_feature = self.relu3_3(fake_img_unchanged_area)
+                rgb_a_feature = self.relu3_3(rgb_a_unchanged_area)                    
+                g_style_loss = style_loss_fn(fake_img_feature, rgb_a_feature)
+
+             
+                local_pixel_loss = local_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
+                
+                local_style_loss = local_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
+
+                g_loss = (
+                    (g_adv_loss * ADV_LAMBDA)
+                    + (g_style_loss * STYLE_LAMBDA)
+                    + (g_gen_lc_loss * G_LC_LAMBDA)
+                    + (g_pixel_loss * PIXEL_LAMBDA)
+                    + (
+                        (g_pixel_id_loss + g_style_id_loss) * ID_LAMBDA
+                    )
+                    + (local_style_loss * LOCAL_STYLE_LAMBDA)
+                    + (local_pixel_loss * LOCAL_PIXEL_LAMBDA)
+                )
+               
+
+            total += 1
+            for name in losses_names:
+                epoch_losses[name] += eval(name).item()
+        
+        for name in losses_names:
+            self.val_losses[name].append(epoch_losses[name] / total)
+        
+
+
+        self.generator.train()
+        self.discriminator.train()
+
+
 
     def save_models(self):
         
@@ -323,11 +472,15 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
         with open(self.losses_file, "w") as f:
             json.dump(self.losses, f)
 
+        with open(self.val_losses_file, "w") as f:
+            json.dump(self.val_losses, f)
+
 
     def train(self):
         eval_dir = args.eval_dir
-        num_save_examples = 5
-        save_example(self.generator, self.discriminator, eval_dir, 0, self.val_loader, device, num_save_examples)
+        num_save_examples = 3
+        # save deterministic samples
+        save_example(self.generator, self.discriminator, eval_dir, 0, self.det_val_loader, device, num_save_examples)
         if os.path.exists(eval_dir) and args.load_models:
             start_epoch = int(len(os.listdir(eval_dir)) / num_save_examples)
         else:
@@ -342,6 +495,9 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
             save_example(self.generator, self.discriminator, eval_dir, epoch, self.val_loader, device, num_save_examples)
             self.save_models()
             self.save_losses()
+            plot_losses(os.path.join(args.losses_dir, "train"), self.losses_file)
+            self.evaluate()
+            plot_losses(os.path.join(args.losses_dir, "val"), self.val_losses_file)
 
 
 def run():
