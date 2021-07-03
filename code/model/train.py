@@ -82,7 +82,7 @@ class Train:
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
         d = SatelliteDataset(os.path.join(data_dir,"train"))
-        self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
+        self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
         d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
         self.val_loader = DataLoader(d_val, 1)
@@ -161,7 +161,7 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
             with torch.cuda.amp.autocast():
                 fake_img = self.generator(rgb_a, lc_ab, binary_mask)
 
-                fake_gen_lc, d_fake = self.discriminator(fake_img)
+                _, d_fake = self.discriminator(fake_img)
                 # use sigmoid ?
                 # maybe use random image as rgb_a
                 gen_lc_a, d_real = self.discriminator(rgb_a)
@@ -276,9 +276,9 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                     g_style_loss = style_loss_fn(fake_img_feature, rgb_a_feature)
 
              
-                local_pixel_loss = local_pixel_loss / (args.batch_size * config.num_inpaints)
+                local_pixel_loss = local_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
                 
-                local_style_loss = local_style_loss / (args.batch_size * config.num_inpaints)
+                local_style_loss = local_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
 
                 g_loss = (
                     (g_adv_loss * ADV_LAMBDA)
