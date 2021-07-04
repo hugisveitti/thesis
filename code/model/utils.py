@@ -20,6 +20,7 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
         os.mkdir(folder)
 
     example = 0
+    
     for rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
         rgb_a, rgb_b, lc_a, lc_b, binary_mask = rgb_a.to(device), rgb_b.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device)
 
@@ -51,6 +52,7 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
             fig, ax = plt.subplots(3, 2, figsize=(10,15))
             
             fig.tight_layout()
+            plt.grid(False)
 
             ax[0,0].imshow(lc_ab)
             ax[0,0].set_title("lc_ab (input)")
@@ -81,3 +83,33 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
 
     generator.train() 
     discriminator.train()
+
+
+
+def IoU(lc_a, lc_b, cla):
+    union = lc_a[(lc_a == cla) | (lc_b == cla)].shape[0]
+    if union == 0:
+        return None
+    return len(((lc_a == cla) | (lc_b == cla))[(lc_a == cla) & (lc_b == cla)]) / union
+
+def calc_single_IoUs(lc_a, lc_b):
+    """
+    Calculates the mean IoU,
+    the weights of each class depend on their total ratio in lc_a
+    """
+    c_ratio = []
+    ious = []
+    for c in range(14):
+        iou = IoU(lc_a, lc_b, c)
+        n = lc_a.shape[0] * lc_a.shape[1]
+        if iou != None:
+            ious.append(iou)
+            c_ratio.append(lc_a[lc_a==c].shape[0] / n)
+    return np.sum(np.array(ious) * np.array(c_ratio))
+
+
+def calc_all_IoUs(lc_a, lc_b):
+    lc_a = torch.argmax(lc_a, dim=1)
+    lc_b = torch.argmax(lc_b, dim=1)
+    return np.mean([calc_single_IoUs(lc_a[i], lc_b[i]) for i in range(lc_a.shape[0])])
+
