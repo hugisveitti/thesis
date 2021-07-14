@@ -1,3 +1,5 @@
+
+# for run1
 import torch
 import torch.nn as nn
 
@@ -11,7 +13,7 @@ class Block(nn.Module):
         else:
             self.conv_layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)
         
-        activation = nn.LeakyReLU(0.2) if down else nn.ReLU()
+        activation = nn.ReLU() if not down else nn.LeakyReLU(0.2)
 
         self.block = nn.Sequential(
             self.conv_layer,
@@ -24,12 +26,12 @@ class Block(nn.Module):
         return self.block(x)
 
 
-class Generator(nn.Module):
+class ChannelNetwork(nn.Module):
 
-    def __init__(self, in_channels = 3 + 14 + 1):
-        super(Generator, self).__init__()
+    def __init__(self, in_channels):
+        super(ChannelNetwork, self).__init__()
         self.first_layer = nn.Sequential(
-            nn.Conv2d(in_channels, 64, 4, 2, 1,),
+            nn.Conv2d(in_channels, 64, 4, 2, 1,),# padding_mode="reflect"),
             nn.ReLU()
         )
 
@@ -40,38 +42,49 @@ class Generator(nn.Module):
         
         bottleneck_features = 1024
 
-        self.bottleneck = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
-        # self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
+        self.bottleneck1 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
+        self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
 
         self.up4 = Block(bottleneck_features * 2, 512, down=False)
         self.up3 = Block(512 * 2, 256, down=False)
         self.up2 = Block(256 * 2, 128, down=False)
         self.up1 = Block(128 * 2, 64, down=False)
-        
-        self.up0 = Block(64 * 2, 64,  down=False)
-        self.final = nn.Sequential(
-            nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=1),
-            nn.Sigmoid()
-        )
+        self.final = Block(64 * 2, 64, stride=1, padding=1, kernel_size=3)
 
-    def forward(self, lc, lc_mask, rgb):
-        x = torch.cat([lc, lc_mask, rgb], dim=1)
+    def forward(self, x):
         d1 = self.first_layer(x)
         d2 = self.down1(d1)
         d3 = self.down2(d2)
         d4 = self.down3(d3)
         d5 = self.down4(d4)
 
-        x = self.bottleneck(d5)
+        x = self.bottleneck1(d5)
         
-        # x = self.bottleneck2(x)
+        x = self.bottleneck2(x)
         
         x = self.up4(torch.cat([d5, x], dim=1))
         x = self.up3(torch.cat([d4, x], dim=1))
         x = self.up2(torch.cat([d3, x], dim=1))
         x = self.up1(torch.cat([d2, x], dim=1))
-        x = self.up0(torch.cat([d1, x], dim=1))
-        return self.final(x)
+        x = self.final(torch.cat([d1, x], dim=1))
+        return x
+
+class Generator(nn.Module):
+
+    def __init__(self):
+        super(Generator, self).__init__()
+        self.unet = ChannelNetwork(in_channels = 3 + 14 + 1)
+
+        self.output_network = nn.Sequential(
+            Block(64 , 64, down=False),
+            Block(64, 64, kernel_size=3, stride=1),
+            nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=1),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, rgb, lc, lc_mask):
+        x = self.unet(torch.cat([lc, lc_mask, rgb], dim=1))
+        return self.output_network(x)
 
 
 def test():

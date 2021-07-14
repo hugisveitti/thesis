@@ -21,11 +21,11 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
 
     example = 0
     
-    for rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
-        rgb_a, rgb_b, lc_a, lc_b, binary_mask = rgb_a.to(device), rgb_b.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device)
+    for rgb_a, lc_a, rgb_a_masked, masked_areas in loader:
+        rgb_a, lc_a, rgb_a_masked = rgb_a.to(device), lc_a.to(device), rgb_a_masked.to(device)
 
         with torch.cuda.amp.autocast():
-            fake_img = generator(rgb_a, lc_a, binary_mask)
+            fake_img = generator(rgb_a_masked, lc_a)
             gen_lc, _ = discriminator(rgb_a)
             fake_gen_lc, _ = discriminator(fake_img)
             if torch.isnan(fake_img).any():
@@ -39,9 +39,9 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
             fake_img = np.array(fake_img, dtype=np.float32)
 
             rgb_a = unprocess(rgb_a.cpu())
-            lc_ab = unprocess(lc_ab.cpu(), )
-            lc_ab = create_img_from_classes(lc_ab)
-            binary_mask = np.array(binary_mask.cpu())[0][0]
+            lc_a = unprocess(lc_a.cpu(), )
+            lc_a = create_img_from_classes(lc_a)
+            rgb_a_masked = unprocess(rgb_a_masked.cpu().detach())
 
             gen_lc = unprocess(gen_lc.detach())
             gen_lc = create_img_from_classes(gen_lc)
@@ -54,16 +54,16 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
             fig.tight_layout()
             plt.grid(False)
 
-            ax[0,0].imshow(lc_ab)
-            ax[0,0].set_title("lc_ab (input)")
+            ax[0,0].imshow(lc_a)
+            ax[0,0].set_title("lc_a (input)")
             ax[0,0].grid(False)
 
-            ax[0,1].imshow(binary_mask, cmap="gray")
-            ax[0,1].set_title("binary_mask (input)")
+            ax[0,1].imshow(rgb_a_masked)
+            ax[0,1].set_title("rgb_a_masked (input)")
             ax[0,1].grid(False)
 
             ax[1,0].imshow(rgb_a)
-            ax[1,0].set_title("rgb_a (input)")
+            ax[1,0].set_title("rgb_a (target)")
             ax[1,0].grid(False)
 
             ax[1,1].imshow(fake_img)

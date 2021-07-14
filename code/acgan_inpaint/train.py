@@ -62,7 +62,6 @@ class Train():
             
             rgb_masked, rgb, lc = rgb_masked.to(device), rgb.to(device), lc.to(device)
             self.disc_opt.zero_grad()
-            self.gen_opt.zero_grad()
 
 
             with torch.cuda.amp.autocast():
@@ -85,6 +84,7 @@ class Train():
             scaler.update()
 
             
+            self.gen_opt.zero_grad()
             with torch.cuda.amp.autocast():
                 rgb_fake = self.generator(rgb, lc)
 
@@ -105,12 +105,6 @@ class Train():
                  + (g_pix_loss * LAMDBA_PIXEL)
                 )
 
-
-
-
-
-            # will the g_loss also update the discriminator, since g_loss uses adv_loss which uses d_fake
-
             scaler.scale(g_loss).backward()
             scaler.step(self.gen_opt)
             scaler.update()
@@ -120,7 +114,6 @@ class Train():
                 if not val:
                     val = 0
                 current_losses[l] += val
-            # total += batch_size ?
             total += 1
 
         for l in loss_names:

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Draw tool</title>
+  </head>
+  <body>
+    <button id="send-btn">Generate Image</button>
+    <button id="new-img-btn">New Image</button>
+  </body>
+  <style>
+    body,
+    html {
+      padding: 0;
+      margin: 0;
+    }
+    #send-btn {
+      position: absolute;
+      top: 350px;
+      left: 550px;
+      border-radius: 2px;
+      border: 1px black solid;
+
+      background-color: aqua;
+    }
+    #send-btn:hover {
+      background-color: blueviolet;
+    }
+
+    #new-img-btn {
+      position: absolute;
+      top: 380px;
+      left: 550px;
+      border-radius: 2px;
+      border: 1px black solid;
+
+      background-color: goldenrod;
+    }
+    #new-img-btn:hover {
+      background-color: rebeccapurple;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+  <script>
+    const drawImg = (img, pix) => {
+      img.loadPixels();
+      let d = pixelDensity();
+      let imageSize = 4 * (img.width * d) * (img.height * d);
+      let j = 0;
+      for (let i = 0; i < imageSize; i += 4) {
+        img.pixels[i] = pix[j];
+        img.pixels[i + 1] = pix[j + 1];
+        img.pixels[i + 2] = pix[j + 2];
+        img.pixels[i + 3] = alpha(255);
+        j += 3;
+      }
+
+      img.updatePixels();
+    };
+
+    let rgbImg,
+      rgbPixels,
+      lcPixels,
+      lcImg,
+      fakeImg,
+      fakePixels,
+      colors,
+      binaryImg,
+      binaryPixels,
+      modelRadio;
+    let currentR = 255;
+    let currentG = 255;
+    let currentB = 255;
+    let pencilWidth = 10;
+    let binaryMask = [];
+    // mixlc or inpaint
+    let modelType = "mixlc";
+    function preload() {
+      rgbImg = createImage(256, 256);
+      lcImg = createImage(256, 256);
+      fakeImg = createImage(256, 256);
+      binaryImg = createImage(256, 256);
+      fetch("/images")
+        .then((res) => {
+          return res.json();
+        })
+        .then((data) => {
+          rgbPixels = data["rgb"];
+          lcPixels = data["lc"];
+          drawImg(rgbImg, rgbPixels);
+
+          drawImg(lcImg, lcPixels);
+          binaryMask = new Array(lcPixels.length / 3).fill(0);
+          binaryPixels = new Array(lcPixels.length).fill(0);
+        });
+
+      colors = [
+        {
+          name: "Clouds",
+          value: color(255, 255, 255),
+        },
+        {
+          name: "Artificial surfaces and constructions",
+          value: color(210, 0, 0),
+        },
+        {
+          name: "Cultivated areas",
+          value: color(253, 211, 39),
+        },
+        {
+          name: "Vineyards",
+          value: color(176, 91, 16),
+        },
+        {
+          name: "Broadleaf tree cover",
+          value: color(35, 152, 0),
+        },
+        {
+          name: "Coniferous tree cover",
+          value: color(8, 98, 0),
+        },
+        {
+          name: "Herbaceous vegetation",
+          value: color(249, 150, 39),
+        },
+        {
+          name: "Moors and Heathland",
+          value: color(141, 139, 0),
+        },
+        {
+          name: "Sclerophyllous vegetation",
+          value: color(95, 53, 6),
+        },
+        {
+          name: "Marshes",
+          value: color(149, 107, 196),
+        },
+        {
+          name: "Peatbogs",
+          value: color(77, 37, 106),
+        },
+        {
+          name: "Natural material surfaces",
+          value: color(154, 154, 154),
+        },
+        {
+          name: "Permanent snow covered surfaces",
+          value: color(106, 255, 255),
+        },
+        {
+          name: "Water bodies",
+          value: color(20, 69, 249),
+        },
+      ];
+    }
+    let pencilWidthSlider;
+
+    function setup() {
+      const cnv = createCanvas(256 * 3, 256 * 2);
+
+      image(rgbImg, 0, 0);
+      image(lcImg, 256, 0);
+      frameRate(20);
+
+      /* width slider */
+      pencilWidthSlider = createSlider(2, 50, 10, 2);
+      pencilWidthSlider.position(550, 270);
+      pencilWidthSlider.style("width", "100px");
+
+      /* model selector */
+      modelRadio = createRadio();
+      modelRadio.position(550, 300);
+      const mixlcOption = modelRadio.option("mixlc");
+      modelRadio.selected("mixlc");
+      modelRadio.option("inpaint");
+      modelRadio.style("width", "70px");
+    }
+
+    const drawColorPicker = () => {
+      for (let i = 0; i < colors.length; i++) {
+        fill(colors[i].value);
+        const x = 256 * 2 + 40;
+        const y = 10 + (i / 14) * (256 - 20);
+        const d = 15;
+        rect(x, y, d);
+        fill(0);
+        textSize(8);
+        text(colors[i].name, x + 20, y + 10);
+        colors[i].x = x;
+        colors[i].y = y;
+        colors[i].d = d;
+      }
+    };
+
+    function draw() {
+      if (!rgbPixels || !lcPixels) return;
+      background(211);
+      drawColorPicker();
+      pencilWidth = pencilWidthSlider.value();
+      modelType = modelRadio.value();
+      image(rgbImg, 0, 0);
+      image(lcImg, 256, 0);
+      image(fakeImg, 0, 256);
+      image(binaryImg, 256, 256);
+      if (mouseIsPressed) {
+        if (mouseX > 0 && mouseX < 256 + 256 && mouseY < 256 && mouseY > 0) {
+          const pixel = (mouseY * 256 + (mouseX % 256)) * 3;
+          for (let i = -pencilWidth / 2; i < pencilWidth / 2; i++) {
+            for (let j = -pencilWidth / 2; j < pencilWidth / 2; j++) {
+              const p_off = ((mouseY + j) * 256 + (mouseX + i - 256)) * 3;
+              if (p_off > 0 && p_off < lcPixels.length) {
+                lcPixels[p_off] = currentR;
+                lcPixels[p_off + 1] = currentG;
+                lcPixels[p_off + 2] = currentB;
+
+                binaryPixels[p_off] = 255;
+                binaryPixels[p_off + 1] = 255;
+                binaryPixels[p_off + 1] = 255;
+
+                const bin_p_off = (mouseY + j) * 256 + (mouseX + i - 256);
+                binaryMask[bin_p_off] = 1;
+              }
+            }
+          }
+
+          drawImg(lcImg, lcPixels);
+          drawImg(binaryImg, binaryPixels);
+        }
+
+        if (mouseX > 256 * 2) {
+          for (let color of colors) {
+            if (
+              mouseX > color.x &&
+              mouseX < color.x + color.d &&
+              mouseY > color.y &&
+              mouseY < color.y + color.d
+            ) {
+              currentR = red(color.value);
+              currentB = blue(color.value);
+              currentG = green(color.value);
+            }
+          }
+        }
+      }
+
+      noStroke();
+      fill(color(currentR, currentG, currentB));
+      rect(mouseX - pencilWidth / 2, mouseY - pencilWidth / 2, pencilWidth);
+    }
+
+    const sendBtn = document.getElementById("send-btn");
+    sendBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      fetch("/send/" + modelType, {
+        method: "POST",
+        mode: "same-origin",
+        body: JSON.stringify({
+          rgb: rgbPixels,
+          lc: lcPixels,
+          binaryMask: binaryMask,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          fakePixels = data;
+          drawImg(fakeImg, fakePixels);
+        });
+    });
+
+    const newImgBtn = document.getElementById("new-img-btn");
+    newImgBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      location.reload();
+    });
+  </script>
+</html>

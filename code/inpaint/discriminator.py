@@ -11,7 +11,7 @@ class Block(nn.Module):
         else:
             conv_layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)
         
-        activation = nn.LeakyReLU(0.2) if down else nn.ReLU()
+        activation = nn.ReLU() if not down else nn.LeakyReLU(0.2)
 
         self.block = nn.Sequential(
             conv_layer,
@@ -39,8 +39,8 @@ class Discriminator(nn.Module):
         
         bottleneck_features = 1024
 
-        self.bottleneck = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
-     #   self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
+        self.bottleneck1 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
+        self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
 
         self.up4 = Block(1024 * 2, 512, down=False)
         self.up3 = Block(512 * 2, 256, down=False)
@@ -50,7 +50,7 @@ class Discriminator(nn.Module):
         self.final = Block(64, 14, stride=1, padding=1, kernel_size=3)
 
         self.patch_gan_net = nn.Sequential(
-            Block(bottleneck_features, bottleneck_features, 1, 2, down=False),
+            Block(bottleneck_features, bottleneck_features, 1, 1),
             nn.Conv2d(bottleneck_features, 1, kernel_size=1, padding=1),
         )
 
@@ -62,8 +62,8 @@ class Discriminator(nn.Module):
         d5 = self.down4(d4)
         patch_gan = self.patch_gan_net(d5)
 
-        x = self.bottleneck(d5)
-        # x = self.bottleneck2(x)
+        x = self.bottleneck2(d5)
+        x = self.bottleneck2(x)
         
         x = self.up4(torch.cat([d5, x], dim=1))
         x = self.up3(torch.cat([d4, x], dim=1))

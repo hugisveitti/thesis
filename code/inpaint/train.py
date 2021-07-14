@@ -10,6 +10,7 @@ import json
 from generator import Generator
 from discriminator import Discriminator
 from dataset import SatelliteDataset
+from deterministic_dataset import DeterministicSatelliteDataset
 from utils import save_example, calc_all_IoUs
 import config
 from plot_losses import plot_losses, plot_ious
@@ -28,7 +29,7 @@ ADV_LAMBDA = 0.10
 PIXEL_LAMBDA = 0.50
 ID_LAMBDA = 0.15
 LOCAL_STYLE_LAMBDA = 0.25
-LOCAL_PIXEL_LAMBDA = 0.0
+LOCAL_PIXEL_LAMBDA = 0.25
 G_LC_LAMBDA = 0.3
 
 
@@ -45,10 +46,28 @@ parser.add_argument("--use_sigmoid", type=bool, default=False)
 parser.add_argument("--log_file", type=str, default="training_log.txt")
 
 args = parser.parse_args()
-losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_style_loss","g_pixel_id_loss","g_style_id_loss", "g_gen_lc_loss", "local_style_loss", "local_pixel_loss"]
+losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_pixel_id_loss","g_style_id_loss", "g_gen_lc_loss", "local_style_loss", "local_pixel_loss"]
 possible_ious = ["iou_gen_lc_fake_a_vs_gen_lc_a","iou_gen_lc_a_vs_lc_a","iou_gen_lc_fake_a_vs_lc_a"]
 
 log_file = args.log_file
+
+def style_loss_fn2(phi1, phi2, vgg_activation):
+
+    if len(phi1.shape) < 4:
+        phi1 = phi1.reshape(1, phi1.shape[0], phi1.shape[1], phi1.shape[2]) 
+        phi2 = phi2.reshape(1, phi2.shape[0], phi2.shape[1], phi2.shape[2]) 
+
+    phi1 = vgg_activation(phi1)
+    phi2 = vgg_activation(phi2)
+
+    batch_size, c, h, w = phi1.shape
+    psi1 = phi1.reshape((batch_size, c, w*h))
+    psi2 = phi2.reshape((batch_size, c, w*h))
+    
+    gram1 = torch.matmul(psi1, torch.transpose(psi1, 1, 2)) / (c*h*w)
+    gram2 = torch.matmul(psi2, torch.transpose(psi2, 1, 2)) / (c*h*w)
+    # as described in johnson et al.
+    return torch.sum(torch.norm(gram1 - gram2, p = "fro", dim=(1,2))) / batch_size
 
 class Train:
 
@@ -58,6 +77,8 @@ class Train:
 
         self.generator = Generator().to(device)
         self.discriminator = Discriminator().to(device)
+        print(self.generator)
+        print(self.discriminator)
         # betas? 0.5 and 0.999 are used in pix2pix
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
@@ -68,6 +89,9 @@ class Train:
         d_val = SatelliteDataset(os.path.join(data_dir,"val"), 10)
         self.val_loader = DataLoader(d_val, 1, num_workers=args.num_workers)
        
+        # det_d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
+        # self.det_val_loader = DataLoader(det_d_val, 1)
+
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
         print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
 
@@ -163,16 +187,16 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
 
         total = 0
 
-        for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loop:
-            rgb_a, rgb_ab, lc_a, lc_b, binary_mask = rgb_a.to(device), rgb_ab.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device)
-            lc_ab = lc_ab.to(device)
+        for rgb_a, lc_a, rgb_a_masked, masked_areas in loop:
+            rgb_a, lc_a, rgb_a_masked = rgb_a.to(device), lc_a.to(device), rgb_a_masked.to(device)
+
 
             ## DISCRIMINATOR TRAIN
 
             self.disc_opt.zero_grad()
         
             with torch.cuda.amp.autocast():
-                fake_img = self.generator(rgb_a, lc_ab, binary_mask)
+                fake_img = self.generator(rgb_a_masked, lc_a)
 
                 _, d_fake = self.discriminator(fake_img)
                 # use sigmoid ?
@@ -206,7 +230,8 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
 
             self.gen_opt.zero_grad()
             with torch.cuda.amp.autocast():
-                fake_img = self.generator(rgb_a, lc_ab, binary_mask)
+                fake_img = self.generator(rgb_a_masked, lc_a)
+
                 lc_gen_fake, d_fake = self.discriminator(fake_img)
                 if args.use_sigmoid:
                     torch.sigmoid(d_fake)
@@ -216,20 +241,16 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                 else:
                     g_adv_loss = adv_loss_fn(d_fake, torch.ones_like(d_fake))
 
-                # use how bad the discriminator is at generating the fake lc_ab as a generator loss
-                # btw does this work as I expect?
-                # https://discuss.pytorch.org/t/optimizing-based-on-another-models-output/6935
-                # Because fake_img, from self.generator is part of the computational graph of g_adv_loss, this does work in training the generator.
                 if G_LC_LAMBDA == 0:
                     g_gen_lc_loss = torch.tensor(0)
                 else:
-                    g_gen_lc_loss = class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
+                    g_gen_lc_loss = class_loss_fn(lc_gen_fake, torch.argmax(lc_a, 1))
                 
                 if ID_LAMBDA == 0:
                     g_pixel_id_loss = torch.tensor(0)
                     g_style_id_loss = torch.tensor(0)
                 else:
-                    id_img = self.generator(rgb_a, lc_a, torch.zeros_like(binary_mask).to(device))
+                    id_img = self.generator(rgb_a, lc_a)
                     g_pixel_id_loss = pixel_loss_fn(id_img, rgb_a)
                     feature_id_img = self.relu3_3(id_img)
                     feature_rgb_a = self.relu3_3(rgb_a)
@@ -255,22 +276,17 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                         
                         #r_w, r_h, mask_size_w, mask_size_h = masked_area
                         # maybe not use the rgb_a is the classes are the same.
-                        #local_gen_area = fake_img[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
-                        #rgb_ab_local_area = rgb_ab[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
                         # the boarder margin is only constrained by the adversarial loss...
                         local_gen_area = fake_img[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
-                        rgb_ab_local_area = rgb_ab[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
+                        rgb_a_local_area = rgb_a[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
                         feature_local_gen = self.relu3_3(local_gen_area.reshape(1, local_gen_area.shape[0], local_gen_area.shape[1], local_gen_area.shape[2]))
-                        feature_local_rgb_ab = self.relu3_3(rgb_ab_local_area.reshape(1, rgb_ab_local_area.shape[0], rgb_ab_local_area.shape[1], rgb_ab_local_area.shape[2]))
+                        feature_local_rgb_a = self.relu3_3(rgb_a_local_area.reshape(1, rgb_a_local_area.shape[0], rgb_a_local_area.shape[1], rgb_a_local_area.shape[2]))
                         
                         if LOCAL_STYLE_LAMBDA != 0:
-                            local_style_loss += style_loss_fn(feature_local_gen, feature_local_rgb_ab)
+                            local_style_loss += style_loss_fn(feature_local_gen, feature_local_rgb_a)
                         
                         if LOCAL_PIXEL_LAMBDA != 0:
-                            local_pixel_loss += pixel_loss_fn(local_gen_area, rgb_ab_local_area)
-
-                        fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
-                        rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                            local_pixel_loss += pixel_loss_fn(local_gen_area, rgb_a_local_area)
 
 
                 if local_style_loss == 0:
@@ -282,24 +298,15 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                 if PIXEL_LAMBDA == 0:
                     g_pixel_loss = torch.tensor(0)
                 else:
-                    g_pixel_loss = pixel_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
+                    g_pixel_loss = pixel_loss_fn(fake_img, rgb_a)
                 
 
-                if STYLE_LAMBDA == 0:
-                    g_style_loss = torch.tensor(0)
-                else:
-                    fake_img_feature = self.relu3_3(fake_img_unchanged_area)
-                    rgb_a_feature = self.relu3_3(rgb_a_unchanged_area)                    
-                    g_style_loss = style_loss_fn(fake_img_feature, rgb_a_feature)
-
-             
                 local_pixel_loss = local_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
                 
                 local_style_loss = local_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
 
                 g_loss = (
                     (g_adv_loss * ADV_LAMBDA)
-                    + (g_style_loss * STYLE_LAMBDA)
                     + (g_gen_lc_loss * G_LC_LAMBDA)
                     + (g_pixel_loss * PIXEL_LAMBDA)
                     + (
@@ -310,8 +317,7 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                 )
 
                 if evaluation:
-                    # Idea from Stefan, use rgb_ab and lc_a as input and rgb_a as targer
-                    fake_a = self.generator(rgb_ab, lc_a, binary_mask)
+                    fake_a = self.generator(rgb_a, lc_a)
                     gen_lc_fake_a, _ = self.discriminator(fake_a)
                     gen_lc_a, _ = self.discriminator(rgb_a) 
 
@@ -345,48 +351,6 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
 
             plot_ious(self.ious, args.losses_dir)
 
-    def evaluate(self):
-
-        self.generator.eval()
-        self.discriminator.eval()
-        for m in self.generator.modules():
-            if m.__class__.__name__.startswith('Dropout'):
-                m.train()
-
-        loop = tqdm(self.val_loader, position=0)
-        loop.set_description(f"{self.loop_description} calc IoU")
-
-        total = 0
-        iou_gen_lc_fake_a_vs_gen_lc_a = 0
-        iou_gen_lc_a_vs_lc_a = 0
-        iou_gen_lc_fake_a_vs_lc_a = 0
-        
-        for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loop:
-            rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab = rgb_a.to(device), rgb_ab.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device), lc_ab.to(device)
-            with torch.cuda.amp.autocast():
-                fake_a = self.generator(rgb_ab, lc_a, binary_mask)
-                gen_lc_fake_a, _ = self.discriminator(fake_a)
-                gen_lc_a, _ = self.discriminator(rgb_a) 
-
-                iou_gen_lc_fake_a_vs_gen_lc_a += calc_all_IoUs(gen_lc_fake_a, gen_lc_a)
-                iou_gen_lc_a_vs_lc_a += calc_all_IoUs(gen_lc_a, lc_a)
-                iou_gen_lc_fake_a_vs_lc_a += calc_all_IoUs(gen_lc_fake_a, lc_a)
-                total += 1
-
-        iou_gen_lc_fake_a_vs_gen_lc_a /= total
-        iou_gen_lc_a_vs_lc_a /= total
-        iou_gen_lc_fake_a_vs_lc_a /= total 
-
-        for iou in possible_ious:
-            self.ious[iou].append(eval(iou))
-
-        with open(self.iou_file, "w") as f:
-            json.dump(self.ious, f)
-
-        plot_ious(self.ious, args.losses_dir)
-        self.generator.train()
-        self.discriminator.train()
-
     def save_models(self):
         if not os.path.exists(self.models_dir):
             os.mkdir(self.models_dir)
@@ -407,7 +371,7 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
 
     def train(self):
         eval_dir = args.eval_dir
-        num_save_examples = 2
+        num_save_examples = 1
         # save deterministic samples
         save_example(self.generator, self.discriminator, eval_dir, 0, self.val_loader, device, num_save_examples)
         if os.path.exists(eval_dir) and args.load_models:
