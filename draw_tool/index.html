@@ -69,7 +69,8 @@
       colors,
       binaryImg,
       binaryPixels,
-      modelRadio;
+      modelRadio,
+      imgInput;
     let currentR = 255;
     let currentG = 255;
     let currentB = 255;
@@ -77,12 +78,14 @@
     let binaryMask = [];
     // mixlc or inpaint
     let modelType = "mixlc";
-    function preload() {
-      rgbImg = createImage(256, 256);
-      lcImg = createImage(256, 256);
-      fakeImg = createImage(256, 256);
-      binaryImg = createImage(256, 256);
-      fetch("/images")
+
+    const getImages = () => {
+      let imgName = "";
+      if (imgInput) {
+        imgName = imgInput.value();
+      }
+
+      fetch("/images/" + imgName)
         .then((res) => {
           return res.json();
         })
@@ -95,6 +98,15 @@
           binaryMask = new Array(lcPixels.length / 3).fill(0);
           binaryPixels = new Array(lcPixels.length).fill(0);
         });
+    };
+
+    function preload() {
+      rgbImg = createImage(256, 256);
+      lcImg = createImage(256, 256);
+      fakeImg = createImage(256, 256);
+      binaryImg = createImage(256, 256);
+
+      getImages();
 
       colors = [
         {
@@ -176,6 +188,11 @@
       modelRadio.selected("mixlc");
       modelRadio.option("inpaint");
       modelRadio.style("width", "70px");
+
+      /* img input to get specific image */
+      imgInput = createInput("");
+      imgInput.position(550, 400);
+      imgInput.size(100);
     }
 
     const drawColorPicker = () => {
@@ -272,7 +289,7 @@
     const newImgBtn = document.getElementById("new-img-btn");
     newImgBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      location.reload();
+      getImages();
     });
   </script>
 </html>

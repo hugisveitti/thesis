@@ -15,9 +15,7 @@ print("rgb files",len(rgb_files))
 class Serv(BaseHTTPRequestHandler):
 
     def do_GET(self):
-        idx = np.random.randint(len(rgb_files))
-        fn = rgb_files[idx]
-        print("fn",fn)
+        
 
         if self.path == "/":
             file_to_open = open(os.path.join(curr_dir,"index.html")).read()
@@ -25,7 +23,15 @@ class Serv(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(bytes(file_to_open, 'utf-8'))
 
-        elif self.path == "/images":
+        elif self.path.split("/")[1] == "images":
+            paths = self.path.split("/")
+            if len(paths) > 2 and paths[2] != "" and paths[2] in rgb_files:
+                fn = paths[2]
+            else:
+                idx = np.random.randint(len(rgb_files))
+                fn = rgb_files[idx]
+
+            print("fn",fn)
             with Image.open(os.path.join(data_dir, "rgb",fn)) as f:
                 rgb = np.array(f)[:,:,:3]
 
@@ -49,13 +55,11 @@ class Serv(BaseHTTPRequestHandler):
         ctype, pdict = cgi.parse_header(self.headers['content-type'])
         length = int(self.headers['content-length'])
         message = json.loads(self.rfile.read(length))
-        print("message",message.keys())
         message['received'] = 'ok'
         
         # send the message back
         self.send_response(200)
         self.end_headers()
-        # self.wfile.write(bytes(json.dumps(message), "utf-8"))
 
         use_inpaint = self.path.split("/")[2] == "inpaint"
         fake_img = handle_images(message, use_inpaint)

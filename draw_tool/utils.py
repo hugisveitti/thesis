@@ -51,6 +51,9 @@ inpaint_generator_file = "code/inpaint/results/inpaint_run1/models/generator.pt"
 inp_generator = InpaintGenerator()
 inp_generator.load_state_dict(torch.load(inpaint_generator_file))
 
+c_dir = "draw_tool/testsetup"
+if not os.path.exists(c_dir):
+    os.mkdir(c_dir)
 
 def handle_images(d, use_inpaint=True):
     rgb = d["rgb"]
@@ -74,16 +77,16 @@ def handle_images(d, use_inpaint=True):
     lc = lc.reshape((256,256,3))
 
     plt.imshow(rgb)
-    plt.savefig("modrgb.png")
+    plt.savefig(os.path.join(c_dir,"modrgb.png"))
     plt.close()
 
     plt.imshow(lc)
-    plt.savefig("modlc.png")
+    plt.savefig(os.path.join(c_dir,"modlc.png"))
     plt.close()
 
 
     plt.imshow(binary_mask)
-    plt.savefig("binmask.png")
+    plt.savefig(os.path.join(c_dir,"binmask.png"))
     plt.close()
 
     rgb = torch.tensor(rgb / 255)
@@ -106,7 +109,7 @@ def handle_images(d, use_inpaint=True):
     fake_img = np.moveaxis(fake_img, 0, -1)
     fake_img = np.array(fake_img*255, dtype=np.uint8)
     plt.imshow(fake_img)
-    plt.savefig("fake_img.png")
+    plt.savefig(os.path.join(c_dir,"fake_img.png"))
     plt.close()
 
     return fake_img
