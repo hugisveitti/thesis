@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
-from code.model.old_generator import Generator
+from code.model.generator import Generator
+from code.model.old_generator import Generator as OldGenerator
 from code.inpaint.generator import Generator as InpaintGenerator
 import os
 import torch
@@ -43,9 +44,16 @@ def process(ma):
     ma = ma.type(tensor_type)
     return ma
 
-generator_file = "code/model/results/run1/models/generator.pt"
-generator = Generator()
-generator.load_state_dict(torch.load(generator_file))
+# generator_file = "code/model/results/run2/models/generator.pt"
+# generator = Generator()
+# generator.load_state_dict(torch.load(generator_file))
+
+
+old_generator_file = "code/model/results/run1/models/generator.pt"
+old_generator = OldGenerator()
+old_generator.load_state_dict(torch.load(old_generator_file))
+generator = old_generator
+
 
 inpaint_generator_file = "code/inpaint/results/inpaint_run1/models/generator.pt"
 inp_generator = InpaintGenerator()

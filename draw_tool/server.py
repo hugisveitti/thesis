@@ -4,7 +4,7 @@ import numpy as np
 import json
 import cgi
 import os
-from .utils import handle_images
+from .run_models import handle_images
 
 curr_dir = "draw_tool"
 
