@@ -10,7 +10,7 @@ from plot_losses import plot_losses
 from landcover_model import LandcoverModel
 
 from dataset import SatelliteDataset
-from utils import save_example
+from utils import save_example, calc_all_IoUs
 import config
 
 device = "cuda"
@@ -35,7 +35,7 @@ args = parser.parse_args()
 
 log_file = args.log_file
 
-losses_names = ["loss"]
+losses_names = ["loss", "iou_loss", "class_loss"]
 
 class Train:
 
@@ -115,7 +115,10 @@ class Train:
             self.opt.zero_grad()
             with flag_setting:
                 gen_lc = self.lc_model(rgb)
-                loss = self.class_loss_fn(gen_lc, torch.argmax(lc, 1))
+                class_loss = self.class_loss_fn(gen_lc, torch.argmax(lc, 1))
+                iou_loss = calc_all_IoUs(gen_lc, lc)
+            
+            loss = class_loss + iou_loss
 
             if not evaluation:
                 scaler.scale(loss).backward()

@@ -48,24 +48,35 @@ def save_example(lc_model, val_loader, epoch, folder, device):
     lc_model.train()
 
 
-def plot_losses(losses, folder):
-    plt.figure(figsize=(8,8))
-    plt.plot(losses["mse"], label="mse")
-    plt.plot(losses["g"], label="gen")
-    plt.plot(losses["d"], label="disc")
+def IoU(lc_a, lc_b, cla):
+    union = lc_a[(lc_a == cla) | (lc_b == cla)].shape[0]
+    if union == 0:
+        return None
+    return len(((lc_a == cla) | (lc_b == cla))[(lc_a == cla) & (lc_b == cla)]) / union
+num_classes = 14
+def calc_single_IoUs(lc_a, lc_b):
+    """
+    Calculates the mean IoU,
+    the weights of each class depend on their total ratio in lc_a
+    """
+    c_ratio = []
+    ious = []
+    for c in range(num_classes):
+        iou = IoU(lc_a, lc_b, c)
+        n = lc_a.shape[0] * lc_a.shape[1]
+        if iou != None:
+            ious.append(iou)
+            c_ratio.append(lc_a[lc_a==c].shape[0] / n)
+    return np.sum(np.array(ious) * np.array(c_ratio))
 
-    plt.legend()
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-    plt.savefig(f"{folder}/losses.png")
-    plt.close()
 
-def save_models(generator, discriminator, epoch):
-    folder = "models/"
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-    torch.save(generator.state_dict(), f"{folder}generator{epoch}.pt")
-    torch.save(discriminator.state_dict(), f"{folder}discriminator{epoch}.pt")
+def calc_all_IoUs(lc_a, lc_b):
+    lc_a = torch.argmax(lc_a, dim=1)
+    lc_b = torch.argmax(lc_b, dim=1)
+    # lc_a.shape[0] are the batches
+    return np.mean([calc_single_IoUs(lc_a[i], lc_b[i]) for i in range(lc_a.shape[0])])
+
+
 
 def test():
     device = "cuda" if torch.cuda.is_available() else "cpu"
