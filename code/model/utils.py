@@ -1,9 +1,11 @@
 import torch
+import torch.nn as nn
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 
 from datautils import unprocess, create_img_from_classes
+import config
 
 def save_example(generator, discriminator, folder, epoch, loader, device, num_examples = 5):
     # In pix2pix they talk about using the dropout as the random noise
@@ -97,7 +99,7 @@ def IoU(lc_a, lc_b, cla):
     if union == 0:
         return None
     return len(((lc_a == cla) | (lc_b == cla))[(lc_a == cla) & (lc_b == cla)]) / union
-
+num_classes = 14
 def calc_single_IoUs(lc_a, lc_b):
     """
     Calculates the mean IoU,
@@ -105,7 +107,7 @@ def calc_single_IoUs(lc_a, lc_b):
     """
     c_ratio = []
     ious = []
-    for c in range(14):
+    for c in range(num_classes):
         iou = IoU(lc_a, lc_b, c)
         n = lc_a.shape[0] * lc_a.shape[1]
         if iou != None:
@@ -117,5 +119,34 @@ def calc_single_IoUs(lc_a, lc_b):
 def calc_all_IoUs(lc_a, lc_b):
     lc_a = torch.argmax(lc_a, dim=1)
     lc_b = torch.argmax(lc_b, dim=1)
+    # lc_a.shape[0] are the batches
     return np.mean([calc_single_IoUs(lc_a[i], lc_b[i]) for i in range(lc_a.shape[0])])
 
+class StyleLoss(nn.Module):
+    
+    def __init__(self, relu3_3, device):
+        super(StyleLoss, self).__init__()
+        self.relu3_3 = relu3_3 
+        
+    def forward(self, img1, img2):
+        if len(img1.shape) == 3:
+            img1 = img1.reshape((1, img1.shape[0], img1.shape[1], img1.shape[2]))
+            img2 = img2.reshape((1, img2.shape[0], img2.shape[1], img2.shape[2]))
+        phi1 = self.relu3_3(img1)
+        phi2 = self.relu3_3(img2)
+
+        batch_size, c, h, w = phi1.shape
+        psi1 = phi1.reshape((batch_size, c, w*h))
+        psi2 = phi2.reshape((batch_size, c, w*h))
+
+        gram1 = torch.matmul(psi1, torch.transpose(psi1, 1, 2)) / (c*h*w)
+        gram2 = torch.matmul(psi2, torch.transpose(psi2, 1, 2)) / (c*h*w)
+        # as described in johnson et al.
+        style_loss = torch.sum(torch.norm(gram1 - gram2, p = "fro", dim=(1,2))) / batch_size
+
+        # Why so many infs???
+        # not always inf but sometimes
+        # the generator is not apart of this computation graph so I dont think this works.
+        if style_loss.isinf().any():
+            return torch.tensor([1.], requires_grad=True).to(config.device)
+        return style_loss

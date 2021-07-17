@@ -10,7 +10,7 @@ import json
 from generator import Generator
 from discriminator import Discriminator
 from dataset import SatelliteDataset
-from utils import save_example, calc_all_IoUs
+from utils import save_example, calc_all_IoUs, StyleLoss
 import config
 from plot_losses import plot_losses, plot_ious
 
@@ -18,18 +18,17 @@ device = "cuda"
 LEARNING_RATE = 0.0002
 scaler = torch.cuda.amp.GradScaler()
 
-pixel_loss_fn = nn.L1Loss()
-adv_loss_fn = nn.MSELoss()
-style_loss_fn = nn.MSELoss()
-class_loss_fn = nn.CrossEntropyLoss()
 
-STYLE_LAMBDA = 0.0
-ADV_LAMBDA = 0.10
-PIXEL_LAMBDA = 0.50
-ID_LAMBDA = 0.15
-LOCAL_STYLE_LAMBDA = 0.25
-LOCAL_PIXEL_LAMBDA = 0.0
-G_LC_LAMBDA = 0.3
+g_style_loss_lambda = 0.0
+g_adv_lambda = 0.50
+g_pixel_loss_lambda = 0.50
+id_lambda = 0.15
+local_g_style_loss_lambda = 0.5
+local_g_pixel_loss_lambda = 0.0
+g_gen_lc_loss_lambda = 0.15
+
+min_lambda_value = 0.05
+
 
 
 parser = argparse.ArgumentParser()
@@ -37,18 +36,27 @@ parser.add_argument("--data_dir", type=str, default="../../data/grid_dir")
 parser.add_argument("--load_models", type=bool, default=False)
 parser.add_argument("--eval_dir", type=str, default="eval")
 parser.add_argument("--num_epochs", type=int, default=20)
-parser.add_argument("--batch_size", type=int, default=16)
+parser.add_argument("--batch_size", type=int, default=8)
+parser.add_argument("--val_batch_size", type=int, default=8)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--losses_dir", type=str, default="losses")
 parser.add_argument("--models_dir", type=str, default="models/")
 parser.add_argument("--use_sigmoid", type=bool, default=False)
 parser.add_argument("--log_file", type=str, default="training_log.txt")
+parser.add_argument("--use_dynamic_lambdas", type=bool, default=False)
+# activate dynamic lambdas after certain epoch
+parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
 args = parser.parse_args()
-losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_style_loss","g_pixel_id_loss","g_style_id_loss", "g_gen_lc_loss", "local_style_loss", "local_pixel_loss"]
+losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_style_loss","g_pixel_id_loss","g_feature_id_loss", "g_gen_lc_loss", "local_g_style_loss", "local_g_pixel_loss"]
 possible_ious = ["iou_gen_lc_fake_a_vs_gen_lc_a","iou_gen_lc_a_vs_lc_a","iou_gen_lc_fake_a_vs_lc_a"]
+lambdas_names = ["g_style_loss_lambda", "g_adv_lambda", "g_pixel_loss_lambda", "local_g_style_loss_lambda", "local_g_pixel_loss_lambda", "g_gen_lc_loss_lambda"]
+
+# to dynamically change loss lambdas, always have id = 0.1
+all_lambdas = {"g_style_loss_lambda":[g_style_loss_lambda, "g_style_loss"], "g_adv_lambda": [g_adv_lambda, "g_adv_loss"], "g_pixel_loss_lambda":[g_pixel_loss_lambda, "g_pixel_loss"], "local_g_style_loss_lambda":[local_g_style_loss_lambda, "local_g_style_loss"], "local_g_pixel_loss_lambda":[local_g_pixel_loss_lambda, "local_g_pixel_loss"], "g_gen_lc_loss_lambda":[g_gen_lc_loss_lambda, "g_gen_lc_loss"]}
 
 log_file = args.log_file
+
 
 class Train:
 
@@ -62,18 +70,23 @@ class Train:
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
-        d = SatelliteDataset(os.path.join(data_dir,"train"), 10)
+        d = SatelliteDataset(os.path.join(data_dir,"train"))
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = SatelliteDataset(os.path.join(data_dir,"val"), 10)
-        self.val_loader = DataLoader(d_val, 1, num_workers=args.num_workers)
+        d_val = SatelliteDataset(os.path.join(data_dir,"val"))
+        self.val_loader = DataLoader(d_val, batch_size=args.val_batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
         print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
 
         vgg_model = torch.hub.load('pytorch/vision:v0.9.0', 'vgg16', pretrained=True).to(device)
         self.relu3_3 = torch.nn.Sequential(*vgg_model.features[:16])
-
+        
+        self.pixel_loss_fn = nn.L1Loss()
+        self.adv_loss_fn = nn.MSELoss()
+        self.style_loss_fn = StyleLoss(self.relu3_3, device)
+        self.class_loss_fn = nn.CrossEntropyLoss()
+        self.feature_loss_fn = nn.MSELoss()
         
         self.models_dir = args.models_dir
         self.loop_description = ""
@@ -109,25 +122,26 @@ class Train:
             with open(self.iou_file, "r") as f:
                 self.ious = json.load(f) 
 
+        self.use_dynamic_lambdas = args.use_dynamic_lambdas
+
         print("\n########\nLambdas:")
-        print("STYLE_LAMBDA",STYLE_LAMBDA)
-        print("ADV_LAMBDA",ADV_LAMBDA)
-        print("PIXEL_LAMBDA", PIXEL_LAMBDA)
-        print("ID_LAMBDA", ID_LAMBDA)
-        print("LOCAL_STYLE_LAMBDA",LOCAL_STYLE_LAMBDA)
-        print("LOCAL_PIXEL_LAMBDA", LOCAL_PIXEL_LAMBDA)
-        print("G_LC_LAMBDA", G_LC_LAMBDA)
+        print("g_style_loss_lambda",g_style_loss_lambda)
+        print("g_adv_lambda",g_adv_lambda)
+        print("g_pixel_loss_lambda", g_pixel_loss_lambda)
+        print("id_lambda", id_lambda)
+        print("local_g_style_loss_lambda",local_g_style_loss_lambda)
+        print("local_g_pixel_loss_lambda", local_g_pixel_loss_lambda)
+        print("g_gen_lc_loss_lambda", g_gen_lc_loss_lambda)
         print("########\n")
 
+
+        self.add_lambdas_to_log()
+
+    def add_lambdas_to_log(self,):
         log_s = f"""
 ########\nLambdas:
-STYLE_LAMBDA: {STYLE_LAMBDA}
-ADV_LAMBDA: {ADV_LAMBDA}
-PIXEL_LAMBDA: {PIXEL_LAMBDA}
-ID_LAMBDA: {ID_LAMBDA}
-LOCAL_STYLE_LAMBDA: {LOCAL_STYLE_LAMBDA}
-LOCAL_PIXEL_LAMBDA: {LOCAL_PIXEL_LAMBDA}
-G_LC_LAMBDA: {G_LC_LAMBDA}
+epoch: {self.loop_description}
+{str(all_lambdas)}
 ########\n
         """
 
@@ -151,6 +165,7 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
 
             self.discriminator.train()
             self.generator.train()
+            self.add_lambdas_to_log()
 
         epoch_losses = {}
         for name in losses_names:
@@ -170,8 +185,12 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
             ## DISCRIMINATOR TRAIN
 
             self.disc_opt.zero_grad()
+
+            flag_setting = torch.cuda.amp.autocast()
+            if evaluation:
+                flag_setting = torch.cuda.amp.autocast() and torch.no_grad()
         
-            with torch.cuda.amp.autocast():
+            with flag_setting:
                 fake_img = self.generator(rgb_a, lc_ab, binary_mask)
 
                 _, d_fake = self.discriminator(fake_img)
@@ -190,11 +209,11 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                 # https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/cycle_gan_model.py
                 # In this they say they use PatchGAN, they do it like this and dont use sigmoid in discriminator
                 # and either use MSE or BCEWithLogits, and they do wgangp: see line 270 in https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/networks.py
-                d_fake_loss = adv_loss_fn(d_fake, torch.zeros_like(d_fake))
-                d_real_loss = adv_loss_fn(d_real, torch.ones_like(d_real))
+                d_fake_loss = self.adv_loss_fn(d_fake, torch.zeros_like(d_fake))
+                d_real_loss = self.adv_loss_fn(d_real, torch.ones_like(d_real))
 
                
-                d_lc_real_loss = class_loss_fn(gen_lc_a, torch.argmax(lc_a, 1))
+                d_lc_real_loss = self.class_loss_fn(gen_lc_a, torch.argmax(lc_a, 1))
                 d_loss = (d_fake_loss + d_real_loss + d_lc_real_loss) / 2
             
             if not evaluation:
@@ -205,38 +224,38 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
             ## GENERATOR TRAIN
 
             self.gen_opt.zero_grad()
-            with torch.cuda.amp.autocast():
+            with flag_setting:
                 fake_img = self.generator(rgb_a, lc_ab, binary_mask)
                 lc_gen_fake, d_fake = self.discriminator(fake_img)
                 if args.use_sigmoid:
                     torch.sigmoid(d_fake)
 
-                if ADV_LAMBDA == 0:
+                if g_adv_lambda == 0:
                     g_adv_loss = torch.tensor(0)
                 else:
-                    g_adv_loss = adv_loss_fn(d_fake, torch.ones_like(d_fake))
+                    g_adv_loss = self.adv_loss_fn(d_fake, torch.ones_like(d_fake))
 
                 # use how bad the discriminator is at generating the fake lc_ab as a generator loss
                 # btw does this work as I expect?
                 # https://discuss.pytorch.org/t/optimizing-based-on-another-models-output/6935
                 # Because fake_img, from self.generator is part of the computational graph of g_adv_loss, this does work in training the generator.
-                if G_LC_LAMBDA == 0:
+                if g_gen_lc_loss_lambda == 0:
                     g_gen_lc_loss = torch.tensor(0)
                 else:
-                    g_gen_lc_loss = class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
+                    g_gen_lc_loss = self.class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
                 
-                if ID_LAMBDA == 0:
+                if id_lambda == 0:
                     g_pixel_id_loss = torch.tensor(0)
-                    g_style_id_loss = torch.tensor(0)
+                    g_feature_id_loss = torch.tensor(0)
                 else:
                     id_img = self.generator(rgb_a, lc_a, torch.zeros_like(binary_mask).to(device))
-                    g_pixel_id_loss = pixel_loss_fn(id_img, rgb_a)
+                    g_pixel_id_loss = self.pixel_loss_fn(id_img, rgb_a)
                     feature_id_img = self.relu3_3(id_img)
                     feature_rgb_a = self.relu3_3(rgb_a)
-                    g_style_id_loss = style_loss_fn(feature_id_img, feature_rgb_a)
+                    g_feature_id_loss = self.feature_loss_fn(feature_id_img, feature_rgb_a)
 
-                local_style_loss = 0
-                local_pixel_loss = 0
+                local_g_style_loss = 0
+                local_g_pixel_loss = 0
 
                 # set changed places to 0 
                 fake_img_unchanged_area = fake_img.clone()
@@ -255,59 +274,59 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
                         
                         #r_w, r_h, mask_size_w, mask_size_h = masked_area
                         # maybe not use the rgb_a is the classes are the same.
-                        #local_gen_area = fake_img[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
-                        #rgb_ab_local_area = rgb_ab[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
+                        # local_gen_area = fake_img[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
+                        # rgb_ab_local_area = rgb_ab[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
                         # the boarder margin is only constrained by the adversarial loss...
                         local_gen_area = fake_img[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
                         rgb_ab_local_area = rgb_ab[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h]
-                        feature_local_gen = self.relu3_3(local_gen_area.reshape(1, local_gen_area.shape[0], local_gen_area.shape[1], local_gen_area.shape[2]))
-                        feature_local_rgb_ab = self.relu3_3(rgb_ab_local_area.reshape(1, rgb_ab_local_area.shape[0], rgb_ab_local_area.shape[1], rgb_ab_local_area.shape[2]))
                         
-                        if LOCAL_STYLE_LAMBDA != 0:
-                            local_style_loss += style_loss_fn(feature_local_gen, feature_local_rgb_ab)
+                        if local_g_style_loss_lambda != 0:
+                            # local_g_style_loss += self.style_loss_fn(feature_local_gen, feature_local_rgb_ab)
+                            local_g_style_loss += self.style_loss_fn(local_gen_area, rgb_ab_local_area)
                         
-                        if LOCAL_PIXEL_LAMBDA != 0:
-                            local_pixel_loss += pixel_loss_fn(local_gen_area, rgb_ab_local_area)
+                        if local_g_pixel_loss_lambda != 0:
+                            local_g_pixel_loss += self.pixel_loss_fn(local_gen_area, rgb_ab_local_area)
 
                         fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
                         rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
 
 
-                if local_style_loss == 0:
-                    local_style_loss = torch.tensor(0)
-                if local_pixel_loss == 0:
-                    local_pixel_loss = torch.tensor(0)
+                if local_g_style_loss == 0:
+                    local_g_style_loss = torch.tensor(0)
+                if local_g_pixel_loss == 0:
+                    local_g_pixel_loss = torch.tensor(0)
 
                 # Don't calculate if lambda is 0, since
-                if PIXEL_LAMBDA == 0:
+                if g_pixel_loss_lambda == 0:
                     g_pixel_loss = torch.tensor(0)
                 else:
-                    g_pixel_loss = pixel_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
+                    g_pixel_loss = self.pixel_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
                 
 
-                if STYLE_LAMBDA == 0:
+                if g_style_loss_lambda == 0:
                     g_style_loss = torch.tensor(0)
                 else:
                     fake_img_feature = self.relu3_3(fake_img_unchanged_area)
                     rgb_a_feature = self.relu3_3(rgb_a_unchanged_area)                    
-                    g_style_loss = style_loss_fn(fake_img_feature, rgb_a_feature)
+                    g_style_loss = self.feature_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
 
              
-                local_pixel_loss = local_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
+                local_g_pixel_loss = local_g_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
                 
-                local_style_loss = local_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
+                local_g_style_loss = local_g_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
 
                 g_loss = (
-                    (g_adv_loss * ADV_LAMBDA)
-                    + (g_style_loss * STYLE_LAMBDA)
-                    + (g_gen_lc_loss * G_LC_LAMBDA)
-                    + (g_pixel_loss * PIXEL_LAMBDA)
+                    (g_adv_loss * all_lambdas["g_adv_lambda"][0])
+                    + (g_style_loss * all_lambdas["g_style_loss_lambda"][0])
+                    + (g_gen_lc_loss * all_lambdas["g_gen_lc_loss_lambda"][0])
+                    + (g_pixel_loss * all_lambdas["g_pixel_loss_lambda"][0])
                     + (
-                        (g_pixel_id_loss + g_style_id_loss) * ID_LAMBDA
+                        (g_pixel_id_loss + g_feature_id_loss) * id_lambda
                     )
-                    + (local_style_loss * LOCAL_STYLE_LAMBDA)
-                    + (local_pixel_loss * LOCAL_PIXEL_LAMBDA)
+                    + (local_g_style_loss * all_lambdas["local_g_style_loss_lambda"][0])
+                    + (local_g_pixel_loss * all_lambdas["local_g_pixel_loss_lambda"][0])
                 )
+
 
                 if evaluation:
                     # Idea from Stefan, use rgb_ab and lc_a as input and rgb_a as targer
@@ -331,6 +350,19 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
             if evaluation:
                 for iou in possible_ious:
                     epoch_ious[iou] += eval(iou)
+
+        # dynamically change the lambdas, based off how bad their loss is
+        if self.use_dynamic_lambdas:
+            total_g_loss = 0 
+            for lamdba_name in lambdas_names:
+                loss_name = all_lambdas[lamdba_name][1]
+                total_g_loss += epoch_losses[loss_name]
+
+            for lamdba_name in lambdas_names:
+                loss_name = all_lambdas[lamdba_name][1]
+                all_lambdas[lamdba_name][0] = max((epoch_losses[loss_name]) / total_g_loss, min_lambda_value)
+
+        
         
         loss_dict = self.val_losses if evaluation else self.losses
 
@@ -345,48 +377,7 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
 
             plot_ious(self.ious, args.losses_dir)
 
-    def evaluate(self):
-
-        self.generator.eval()
-        self.discriminator.eval()
-        for m in self.generator.modules():
-            if m.__class__.__name__.startswith('Dropout'):
-                m.train()
-
-        loop = tqdm(self.val_loader, position=0)
-        loop.set_description(f"{self.loop_description} calc IoU")
-
-        total = 0
-        iou_gen_lc_fake_a_vs_gen_lc_a = 0
-        iou_gen_lc_a_vs_lc_a = 0
-        iou_gen_lc_fake_a_vs_lc_a = 0
-        
-        for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loop:
-            rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab = rgb_a.to(device), rgb_ab.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device), lc_ab.to(device)
-            with torch.cuda.amp.autocast():
-                fake_a = self.generator(rgb_ab, lc_a, binary_mask)
-                gen_lc_fake_a, _ = self.discriminator(fake_a)
-                gen_lc_a, _ = self.discriminator(rgb_a) 
-
-                iou_gen_lc_fake_a_vs_gen_lc_a += calc_all_IoUs(gen_lc_fake_a, gen_lc_a)
-                iou_gen_lc_a_vs_lc_a += calc_all_IoUs(gen_lc_a, lc_a)
-                iou_gen_lc_fake_a_vs_lc_a += calc_all_IoUs(gen_lc_fake_a, lc_a)
-                total += 1
-
-        iou_gen_lc_fake_a_vs_gen_lc_a /= total
-        iou_gen_lc_a_vs_lc_a /= total
-        iou_gen_lc_fake_a_vs_lc_a /= total 
-
-        for iou in possible_ious:
-            self.ious[iou].append(eval(iou))
-
-        with open(self.iou_file, "w") as f:
-            json.dump(self.ious, f)
-
-        plot_ious(self.ious, args.losses_dir)
-        self.generator.train()
-        self.discriminator.train()
-
+   
     def save_models(self):
         if not os.path.exists(self.models_dir):
             os.mkdir(self.models_dir)
@@ -417,8 +408,12 @@ G_LC_LAMBDA: {G_LC_LAMBDA}
         num_epochs = args.num_epochs
         with open(log_file, "a") as f:
             f.write(f"start epoch {start_epoch}\n\n\n")
+        
 
         for epoch in range(start_epoch, start_epoch + num_epochs):
+            if args.dynamic_lambdas_epoch != -1 and epoch >= args.dynamic_lambdas_epoch:
+                self.use_dynamic_lambdas = True
+
             self.loop_description = f"{epoch} / {num_epochs + start_epoch - 1}"
             self.epoch(False)
             save_example(self.generator, self.discriminator, eval_dir, epoch, self.val_loader, device, num_save_examples)

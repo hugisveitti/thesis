@@ -16,7 +16,7 @@ class Block(nn.Module):
         self.block = nn.Sequential(
             self.conv_layer,
             nn.BatchNorm2d(out_channels),
-            nn.Dropout2d(0.5) if not down else nn.Identity(), # Dropout acts as noise, see pix2pix
+            nn.Dropout2d(0.2) if not down else nn.Identity(), # Dropout acts as noise, see pix2pix
             activation,
         )
 
@@ -41,7 +41,7 @@ class Generator(nn.Module):
         bottleneck_features = 1024
 
         self.bottleneck = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
-        # self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
+        self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
 
         self.up4 = Block(bottleneck_features * 2, 512, down=False)
         self.up3 = Block(512 * 2, 256, down=False)
@@ -50,6 +50,7 @@ class Generator(nn.Module):
         
         self.up0 = Block(64 * 2, 64,  down=False)
         self.final = nn.Sequential(
+            Block(64, 64, kernel_size=3, stride=1),
             nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=1),
             nn.Sigmoid()
         )
@@ -64,7 +65,7 @@ class Generator(nn.Module):
 
         x = self.bottleneck(d5)
         
-        # x = self.bottleneck2(x)
+        x = self.bottleneck2(x)
         
         x = self.up4(torch.cat([d5, x], dim=1))
         x = self.up3(torch.cat([d4, x], dim=1))

@@ -40,7 +40,7 @@ class Discriminator(nn.Module):
         bottleneck_features = 1024
 
         self.bottleneck = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
-     #   self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
+        self.bottleneck2 = Block(bottleneck_features, bottleneck_features, stride=1, padding=1, kernel_size=3)
 
         self.up4 = Block(1024 * 2, 512, down=False)
         self.up3 = Block(512 * 2, 256, down=False)
@@ -63,7 +63,7 @@ class Discriminator(nn.Module):
         patch_gan = self.patch_gan_net(d5)
 
         x = self.bottleneck(d5)
-        # x = self.bottleneck2(x)
+        x = self.bottleneck2(x)
         
         x = self.up4(torch.cat([d5, x], dim=1))
         x = self.up3(torch.cat([d4, x], dim=1))

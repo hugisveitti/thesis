@@ -11,8 +11,7 @@ flip_horizontal = T.RandomHorizontalFlip(p=1)
 
 flip_vertical = T.RandomVerticalFlip(p=1)
 
-def normalize(img):
-    return img 
+
 toTensor = T.ToTensor()
 
 class SatelliteDataset(Dataset):
@@ -26,7 +25,6 @@ class SatelliteDataset(Dataset):
     def open_img(self, idx):
         with Image.open(os.path.join(self.root_dir, "rgb", self.rgb_files[idx])) as img:
             img = toTensor(img)[:3,:,:]
-            img = normalize(img)
         return img
 
     def open_classes(self, idx):
@@ -47,10 +45,9 @@ class SatelliteDataset(Dataset):
 
         for i in range(r_w, r_w + mask_size_w):
             for j in range(r_h, r_h + mask_size_h):
-                # wont create a rgb_ab anymore
+                lc_ab[:,i,j] = lc_b[:,i,j]
+                binary_mask[0, i, j] = 1
                 if not torch.equal(lc_a[:,i,j], lc_b[:,i,j]):
-                    binary_mask[0, i, j] = 1
-                    lc_ab[:,i,j] = lc_b[:,i,j]
                     rgb_ab[:, i, j] = rgb_b[:, i, j]
         
 

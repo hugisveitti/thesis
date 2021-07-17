@@ -45,3 +45,7 @@ Maybe change the losses or pretrain with only ID_loss?
 ![discriminator loss](images/discriminator_losses.png)
 
 All losses count the same for the discriminator.
+
+## Evaluation
+
+![iou evaluation](images/IoU_calculation.png)
