@@ -148,5 +148,13 @@ class StyleLoss(nn.Module):
         # not always inf but sometimes
         # the generator is not apart of this computation graph so I dont think this works.
         if style_loss.isinf().any():
-            return torch.tensor([1.], requires_grad=True).to(config.device)
+            return torch.tensor(1., requires_grad=True).to(config.device)
         return style_loss
+
+
+def calc_accuracy(pred, target):
+    pred = torch.argmax(pred, dim=1)
+    target = torch.argmax(target, dim=1)
+    pred = pred.flatten()
+    target = target.flatten() 
+    return torch.tensor(target[target == pred].shape[0] / target.shape[0], requires_grad=True)

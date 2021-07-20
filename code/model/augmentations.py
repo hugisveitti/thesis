@@ -16,7 +16,10 @@ def apply_augmentations(
     """
     batch_size = y.shape[0]
     for p in types:
-        for f, f2, f3 in AUGMENT_FNS[p]:
+        # print(p, AUGMENT_FNS[p])
+        # print(len(AUGMENT_FNS[p]))
+        for f, f3 in AUGMENT_FNS[p]:
+        # for f, f2, f3 in AUGMENT_FNS[p]:
             apply_aug = torch.rand(batch_size) < prob
             if apply_aug.any():
                 no_aug_cond = ~ apply_aug.view(-1, 1, 1, 1).to(y.device)
@@ -25,14 +28,15 @@ def apply_augmentations(
                 yy[apply_aug] = tmp_y
                 y = y.where(no_aug_cond, yy)
 
-                if params is None:
-                    tmp_cond, _ = f3(cond[apply_aug])
-                else:
-                    tmp_cond, _ = f3(cond[apply_aug], params)
+                if cond != None:
+                    if params is None:
+                        tmp_cond, _ = f3(cond[apply_aug])
+                    else:
+                        tmp_cond, _ = f3(cond[apply_aug], params)
 
-                cc = torch.empty_like(cond)
-                cc[apply_aug] = tmp_cond
-                cond = cond.where(no_aug_cond, cc)
+                    cc = torch.empty_like(cond)
+                    cc[apply_aug] = tmp_cond
+                    cond = cond.where(no_aug_cond, cc)
     return y, cond
 
 
@@ -160,8 +164,8 @@ AUGMENT_FNS = {
     'noise': [
         (rand_nnoise, noop),
         (rand_unoise, noop),
-        (rand_nnoise, noop),
-        (rand_unoise, noop)
+        # (rand_nnoise, noop),
+        # (rand_unoise, noop)
     ],
     'blit': [
         (hflip, hflip),

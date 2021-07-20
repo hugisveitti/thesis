@@ -23,10 +23,10 @@ class Block(nn.Module):
         return self.block(x)
 
 
-class Discriminator(nn.Module):
+class LandcoverModel(nn.Module):
 
     def __init__(self, in_channels=3):
-        super(Discriminator, self).__init__()
+        super(LandcoverModel, self).__init__()
         self.first_layer = nn.Sequential(
             nn.Conv2d(in_channels, 64, 4, 2, 1, padding_mode="reflect"),
             nn.ReLU()
@@ -47,15 +47,10 @@ class Discriminator(nn.Module):
         self.up2 = Block(256 * 2, 128, down=False)
         self.up1 = Block(128 * 2, 64, down=False)
         self.up0 = Block(64*2, 64, down=False)
-
         self.final = nn.Sequential(
             nn.Conv2d(64, 14, kernel_size=3, stride=1, padding=1),
         )
-        
-        self.patch_gan_net = nn.Sequential(
-            Block(bottleneck_features, bottleneck_features, 1, 2, down=False),
-            nn.Conv2d(bottleneck_features, 1, kernel_size=1, padding=1),
-        )
+
 
     def forward(self, x):
         d1 = self.first_layer(x)
@@ -63,7 +58,6 @@ class Discriminator(nn.Module):
         d3 = self.down2(d2)
         d4 = self.down3(d3)
         d5 = self.down4(d4)
-        patch_gan = self.patch_gan_net(d5)
 
         x = self.bottleneck(d5)
         x = self.bottleneck2(x)
@@ -74,16 +68,16 @@ class Discriminator(nn.Module):
         x = self.up1(torch.cat([d2, x], dim=1))
         x = self.up0(torch.cat([d1, x], dim=1))
         gen_lc = self.final(x)
-        return gen_lc, patch_gan
+        return gen_lc
 
 
 def test():
-    d = Discriminator()
+    d = LandcoverModel()
     rgb = torch.randn((1,3,256,256))
-    gen_lc, patch_gan = d(rgb)
+    gen_lc = d(rgb)
 
     print("gen lc shape", gen_lc.shape)
-    print("patch_GAN shape", patch_gan.shape)
+
     import numpy as np
     n_params = sum([np.prod(p.size()) for p in d.parameters()])
     print("number of parameters in discriminator", n_params)
