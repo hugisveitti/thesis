@@ -47,8 +47,9 @@ class LandcoverModel(nn.Module):
         self.up2 = Block(256 * 2, 128, down=False)
         self.up1 = Block(128 * 2, 64, down=False)
         self.up0 = Block(64*2, 64, down=False)
-        self.final = Block(64, 14, stride=1, padding=1, kernel_size=3)
-
+        self.final = nn.Sequential(
+            nn.Conv2d(64, 14, kernel_size=3, stride=1, padding=1),
+        )
 
 
     def forward(self, x):
@@ -76,6 +77,7 @@ def test():
     gen_lc = d(rgb)
 
     print("gen lc shape", gen_lc.shape)
+    print(torch.sum(gen_lc[0,:,0,0]))
 
     import numpy as np
     n_params = sum([np.prod(p.size()) for p in d.parameters()])

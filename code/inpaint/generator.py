@@ -16,7 +16,7 @@ class Block(nn.Module):
         self.block = nn.Sequential(
             self.conv_layer,
             nn.BatchNorm2d(out_channels),
-            nn.Dropout2d(0.5) if not down else nn.Identity(), # Dropout acts as noise, see pix2pix
+            nn.Dropout2d(0.2) if not down else nn.Identity(), # Dropout acts as noise, see pix2pix
             activation,
         )
 

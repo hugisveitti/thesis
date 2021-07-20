@@ -10,7 +10,7 @@ from plot_losses import plot_losses
 from landcover_model import LandcoverModel
 
 from dataset import SatelliteDataset
-from utils import save_example, calc_all_IoUs
+from utils import save_example, calc_all_IoUs, calc_accuracy
 import config
 
 device = "cuda"
@@ -35,7 +35,7 @@ args = parser.parse_args()
 
 log_file = args.log_file
 
-losses_names = ["loss", "iou_loss", "class_loss"]
+losses_names = ["loss", "iou_loss", "class_loss", "accuracy"]
 
 class Train:
 
@@ -55,7 +55,6 @@ class Train:
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
         print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
-
 
         self.class_loss_fn = nn.CrossEntropyLoss()
 
@@ -116,7 +115,8 @@ class Train:
             with flag_setting:
                 gen_lc = self.lc_model(rgb)
                 class_loss = self.class_loss_fn(gen_lc, torch.argmax(lc, 1))
-                iou_loss = calc_all_IoUs(gen_lc, lc)
+                iou_loss = 1 - calc_all_IoUs(gen_lc, lc)
+                accuracy = calc_accuracy(gen_lc, lc)
             
             loss = class_loss + iou_loss
 

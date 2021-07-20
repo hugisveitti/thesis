@@ -47,7 +47,10 @@ class Discriminator(nn.Module):
         self.up2 = Block(256 * 2, 128, down=False)
         self.up1 = Block(128 * 2, 64, down=False)
         self.up0 = Block(64*2, 64, down=False)
-        self.final = Block(64, 14, stride=1, padding=1, kernel_size=3)
+
+        self.final = nn.Sequential(
+            nn.Conv2d(64, 14, kernel_size=3, stride=1, padding=1),
+        )
 
         self.patch_gan_net = nn.Sequential(
             Block(bottleneck_features, bottleneck_features, 1, 1),

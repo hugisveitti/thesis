@@ -156,7 +156,7 @@ local_g_pixel_lambda = {local_g_pixel_lambda}
 g_gen_lc_lambda = {g_gen_lc_lambda}
 ========================
         """
-        print(s)
+        print(log_string)
         with open(log_file, "a") as f:
             f.write(log_string)
 
