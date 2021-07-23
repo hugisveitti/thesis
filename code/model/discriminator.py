@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import config
 
 
 class Block(nn.Module):
@@ -9,9 +10,13 @@ class Block(nn.Module):
         if down:
             conv_layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         else:
-            conv_layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)
+            conv_layer = nn.Sequential(
+                nn.Upsample(scale_factor=2),
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1,padding=1)
+            ) 
+             #nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)
         
-        activation = nn.LeakyReLU(0.2) if down else nn.ReLU()
+        activation = nn.ELU() # nn.LeakyReLU(0.2) if down else nn.ReLU()
 
         self.block = nn.Sequential(
             conv_layer,
@@ -49,7 +54,7 @@ class Discriminator(nn.Module):
         self.up0 = Block(64*2, 64, down=False)
 
         self.final = nn.Sequential(
-            nn.Conv2d(64, 14, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, config.num_classes, kernel_size=3, stride=1, padding=1),
         )
         
         self.patch_gan_net = nn.Sequential(

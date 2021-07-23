@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import config
 
 
 class Block(nn.Module):
@@ -9,9 +10,12 @@ class Block(nn.Module):
         if down:
             self.conv_layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         else:
-            self.conv_layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)
+            self.conv_layer = nn.Sequential(
+                nn.Upsample(scale_factor=2),
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1,padding=1)
+            ) 
         
-        activation = nn.LeakyReLU(0.2) if down else nn.ReLU()
+        activation = nn.ELU() 
 
         self.block = nn.Sequential(
             self.conv_layer,
@@ -26,7 +30,7 @@ class Block(nn.Module):
 
 class Generator(nn.Module):
 
-    def __init__(self, in_channels = 3 + 14 + 1):
+    def __init__(self, in_channels = 3 + config.num_classes + 1):
         super(Generator, self).__init__()
         self.first_layer = nn.Sequential(
             nn.Conv2d(in_channels, 64, 4, 2, 1,),
@@ -79,7 +83,7 @@ def test():
     batch_size = 8
     g = Generator()
     rgb = torch.randn((batch_size, 3, 256, 256))
-    lc = torch.randn((batch_size, 14, 256, 256))
+    lc = torch.randn((batch_size, config.num_classes, 256, 256))
     lc_mask = torch.randn((batch_size, 1, 256, 256))
     print(g(rgb, lc, lc_mask).shape)
 

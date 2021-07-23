@@ -12,7 +12,16 @@ flip_horizontal = T.RandomHorizontalFlip(p=1)
 flip_vertical = T.RandomVerticalFlip(p=1)
 
 
+rand_rotation_90 = T.RandomRotation(90) # -90 or 90
+rand_rotation_180 = T.RandomRotation(180) # -180 or 180
+
+transf_types = [flip_horizontal, flip_vertical, rand_rotation_90, rand_rotation_180]
+
 toTensor = T.ToTensor()
+
+# not use other class
+other_class = torch.zeros(config.num_classes)
+other_class[0] = 1
 
 class SatelliteDataset(Dataset):
 
@@ -29,7 +38,7 @@ class SatelliteDataset(Dataset):
 
     def open_classes(self, idx):
         fn = self.rgb_files[idx].split(".")[0]
-        with np.load(os.path.join(self.root_dir, "lc_classes", fn + ".npz")) as classes:
+        with np.load(os.path.join(self.root_dir, "reduced_classes", fn + ".npz")) as classes:
             classes = classes["arr_0"]
             classes = toTensor(classes)
             classes = classes.type(config.tensor_type)
@@ -43,13 +52,24 @@ class SatelliteDataset(Dataset):
         r_w = np.random.randint(config.local_area_margin, lc_ab.shape[1] - mask_size_w - config.local_area_margin)
         r_h = np.random.randint(config.local_area_margin, lc_ab.shape[2] - mask_size_h - config.local_area_margin)
 
+        # if squared mask then the binary mask will always 1
+        # if not squared then the binary mask will 0 if lc_a[i,j] == lc_b[i,j]
+        # That is we will sometimes ask for the generated image not to be changed under the mask
+        # if the lc's match. I believe this will make the model more robust to different inpainting shapes.
+        squared_mask = np.random.random() < 0.5
+
         for i in range(r_w, r_w + mask_size_w):
             for j in range(r_h, r_h + mask_size_h):
-                lc_ab[:,i,j] = lc_b[:,i,j]
-                binary_mask[0, i, j] = 1
-                if not torch.equal(lc_a[:,i,j], lc_b[:,i,j]):
-                    rgb_ab[:, i, j] = rgb_b[:, i, j]
-        
+                if not torch.equal(lc_b[:,i,j], other_class):
+                    if squared_mask:
+                        lc_ab[:,i,j] = lc_b[:,i,j]
+                        binary_mask[0, i, j] = 1
+                        if not torch.equal(lc_a[:,i,j], lc_b[:,i,j]):
+                            rgb_ab[:, i, j] = rgb_b[:, i, j]
+                    elif not torch.equal(lc_a[:,i,j], lc_b[:,i,j]):
+                        lc_ab[:,i,j] = lc_b[:,i,j]
+                        binary_mask[0, i, j] = 1
+                        rgb_ab[:, i, j] = rgb_b[:, i, j]
 
 
         return [r_w, r_h, mask_size_w, mask_size_h]
@@ -60,9 +80,9 @@ class SatelliteDataset(Dataset):
             rgb_b[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
             rgb_ab[:,i,r_h] = torch.tensor([1,1,1])
             rgb_ab[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
-            lc_ab[:,i,r_h] = torch.zeros(14)
+            lc_ab[:,i,r_h] = torch.zeros(config.num_classes)
             lc_ab[0,i,r_h] = 1
-            lc_ab[:,i,r_h+mask_size_h] = torch.zeros(14)
+            lc_ab[:,i,r_h+mask_size_h] = torch.zeros(config.num_classes)
             lc_ab[0,i,r_h + mask_size_h] = 1
         
         for j in range(r_h, r_h + mask_size_h):
@@ -70,9 +90,9 @@ class SatelliteDataset(Dataset):
             rgb_b[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
             rgb_ab[:, r_w, j] = torch.tensor([1,1,1])
             rgb_ab[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
-            lc_ab[:,r_w,j] = torch.zeros(14)
+            lc_ab[:,r_w,j] = torch.zeros(config.num_classes)
             lc_ab[0,r_w,j] = 1
-            lc_ab[:,r_w+mask_size_w, j] = torch.zeros(14)
+            lc_ab[:,r_w+mask_size_w, j] = torch.zeros(config.num_classes)
             lc_ab[0,r_w + mask_size_w,j] = 1
 
         return [r_w, r_h, mask_size_w, mask_size_h]
@@ -91,17 +111,13 @@ class SatelliteDataset(Dataset):
         rgb_b = self.open_img(idx_b)
         lc_b = self.open_classes(idx_b)
 
-        if np.random.random() < 0.5:
-            rgb_a = flip_horizontal(rgb_a)
-            rgb_b = flip_horizontal(rgb_b)
-            lc_a = flip_horizontal(lc_a)
-            lc_b = flip_horizontal(lc_b)
+        images = [rgb_a, rgb_b, lc_a, lc_b]
 
-        if np.random.random() < 0.5:
-            rgb_a = flip_vertical(rgb_a)
-            rgb_b = flip_vertical(rgb_b)
-            lc_a = flip_vertical(lc_a)
-            lc_b = flip_vertical(lc_b)
+        for transf in transf_types:
+            if np.random.random() < 0.25:
+                for i in range(len(images)):
+                    images[i] = transf(images[i])
+
 
         binary_mask = torch.zeros(1, lc_b.shape[1], lc_b.shape[2])
        
@@ -121,7 +137,7 @@ def test():
     from datautils import unprocess, create_img_from_classes
     import matplotlib.pyplot as plt
 
-    ds = SatelliteDataset("../../data/val")
+    ds = SatelliteDataset("../../data/grid_dir/val")
     loader = DataLoader(ds, 4)
     i = 0
     num_examples = 5
@@ -174,7 +190,7 @@ def test_utils():
     from discriminator import Discriminator
     device = "cpu"
 
-    d = SatelliteDataset("../../data/train")
+    d = SatelliteDataset("../../data/grid_dir/train/")
     l = DataLoader(d, 3)
     g = Generator().to(device)
     discriminator = Discriminator().to(device)

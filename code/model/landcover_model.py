@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import config
 
 
 class Block(nn.Module):
@@ -9,9 +10,12 @@ class Block(nn.Module):
         if down:
             conv_layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         else:
-            conv_layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)
-        
-        activation = nn.LeakyReLU(0.2) if down else nn.ReLU()
+            conv_layer = nn.Sequential(
+                nn.Upsample(scale_factor=2),
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1,padding=1)
+            ) 
+
+        activation = nn.ELU() # nn.LeakyReLU(0.2) if down else nn.ReLU()
 
         self.block = nn.Sequential(
             conv_layer,
@@ -48,7 +52,7 @@ class LandcoverModel(nn.Module):
         self.up1 = Block(128 * 2, 64, down=False)
         self.up0 = Block(64*2, 64, down=False)
         self.final = nn.Sequential(
-            nn.Conv2d(64, 14, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, config.num_classes, kernel_size=3, stride=1, padding=1),
         )
 
 
@@ -77,6 +81,7 @@ def test():
     gen_lc = d(rgb)
 
     print("gen lc shape", gen_lc.shape)
+    print(torch.sum(gen_lc[0,:,0,0]))
 
     import numpy as np
     n_params = sum([np.prod(p.size()) for p in d.parameters()])

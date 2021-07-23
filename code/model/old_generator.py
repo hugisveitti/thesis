@@ -91,7 +91,7 @@ def test():
     batch_size = 8
     g = Generator()
     rgb = torch.randn((batch_size, 3, 256, 256))
-    lc = torch.randn((batch_size, 14, 256, 256))
+    lc = torch.randn((batch_size, config.num_classes, 256, 256))
     lc_mask = torch.randn((batch_size, 1, 256, 256))
     print(g(rgb, lc, lc_mask).shape)
 
