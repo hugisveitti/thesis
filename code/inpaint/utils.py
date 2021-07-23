@@ -1,8 +1,10 @@
 import torch
+import torch.nn as nn
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+import config
 from datautils import unprocess, create_img_from_classes
 
 def save_example(generator, discriminator, folder, epoch, loader, device, num_examples = 5):
@@ -119,3 +121,32 @@ def calc_all_IoUs(lc_a, lc_b):
     lc_b = torch.argmax(lc_b, dim=1)
     return np.mean([calc_single_IoUs(lc_a[i], lc_b[i]) for i in range(lc_a.shape[0])])
 
+
+class StyleLoss(nn.Module):
+    
+    def __init__(self, relu3_3, device):
+        super(StyleLoss, self).__init__()
+        self.relu3_3 = relu3_3 
+        
+    def forward(self, img1, img2):
+        if len(img1.shape) == 3:
+            img1 = img1.reshape((1, img1.shape[0], img1.shape[1], img1.shape[2]))
+            img2 = img2.reshape((1, img2.shape[0], img2.shape[1], img2.shape[2]))
+        phi1 = self.relu3_3(img1)
+        phi2 = self.relu3_3(img2)
+
+        batch_size, c, h, w = phi1.shape
+        psi1 = phi1.reshape((batch_size, c, w*h))
+        psi2 = phi2.reshape((batch_size, c, w*h))
+
+        gram1 = torch.matmul(psi1, torch.transpose(psi1, 1, 2)) / (c*h*w)
+        gram2 = torch.matmul(psi2, torch.transpose(psi2, 1, 2)) / (c*h*w)
+        # as described in johnson et al.
+        style_loss = torch.sum(torch.norm(gram1 - gram2, p = "fro", dim=(1,2))) / batch_size
+
+        # Why so many infs???
+        # not always inf but sometimes
+        # the generator is not apart of this computation graph so I dont think this works.
+        if style_loss.isinf().any():
+            return torch.tensor(1., requires_grad=True).to(config.device)
+        return style_loss

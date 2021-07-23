@@ -31,7 +31,7 @@ class SatelliteDataset(Dataset):
 
     def open_classes(self, idx):
         fn = self.rgb_files[idx].split(".")[0]
-        with np.load(os.path.join(self.root_dir, "lc_classes", fn + ".npz")) as classes:
+        with np.load(os.path.join(self.root_dir, "reduced_classes", fn + ".npz")) as classes:
             classes = classes["arr_0"]
             classes = toTensor(classes)
             classes = classes.type(config.tensor_type)
@@ -58,9 +58,9 @@ class SatelliteDataset(Dataset):
             rgb_b[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
             rgb_ab[:,i,r_h] = torch.tensor([1,1,1])
             rgb_ab[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
-            lc_ab[:,i,r_h] = torch.zeros(14)
+            lc_ab[:,i,r_h] = torch.zeros(config.num_classes)
             lc_ab[0,i,r_h] = 1
-            lc_ab[:,i,r_h+mask_size_h] = torch.zeros(14)
+            lc_ab[:,i,r_h+mask_size_h] = torch.zeros(config.num_classes)
             lc_ab[0,i,r_h + mask_size_h] = 1
         
         for j in range(r_h, r_h + mask_size_h):
@@ -68,9 +68,9 @@ class SatelliteDataset(Dataset):
             rgb_b[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
             rgb_ab[:, r_w, j] = torch.tensor([1,1,1])
             rgb_ab[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
-            lc_ab[:,r_w,j] = torch.zeros(14)
+            lc_ab[:,r_w,j] = torch.zeros(config.num_classes)
             lc_ab[0,r_w,j] = 1
-            lc_ab[:,r_w+mask_size_w, j] = torch.zeros(14)
+            lc_ab[:,r_w+mask_size_w, j] = torch.zeros(config.num_classes)
             lc_ab[0,r_w + mask_size_w,j] = 1
 
         return [r_w, r_h, mask_size_w, mask_size_h]
@@ -109,7 +109,7 @@ def test():
     from datautils import unprocess, create_img_from_classes
     import matplotlib.pyplot as plt
 
-    ds = SatelliteDataset("../../data/val")
+    ds = SatelliteDataset("../../data/grid_dir/val")
     loader = DataLoader(ds, 4)
     i = 0
     num_examples = 1
@@ -148,7 +148,7 @@ def test_utils():
     from discriminator import Discriminator
     device = "cpu"
 
-    d = SatelliteDataset("../../data/train")
+    d = SatelliteDataset("../../data/grid_dir/train")
     l = DataLoader(d, 3)
     g = Generator().to(device)
     discriminator = Discriminator().to(device)
@@ -156,5 +156,5 @@ def test_utils():
     save_example(g, discriminator, "testsetup", 0, l, device, 1)
 
 if __name__ == "__main__":
-    #test()
-    test_utils()
+    test()
+    # test_utils()
