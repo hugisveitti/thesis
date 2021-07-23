@@ -8,13 +8,17 @@ from landcover_model import LandcoverModel
 import ast
 import os
 from datautils import create_img_from_classes, unprocess
+import config
 
 def save_example(lc_model, val_loader, epoch, folder, device, num_examples=1):
     if not os.path.exists(folder):
         os.mkdir(folder)
     example = 0
-    loop = tqdm(val_loader)
-    
+    if num_examples > 1:
+        loop = tqdm(val_loader)
+    else:
+        loop = val_loader
+        
     for input_img, target_c in loop:
    
         if example >= num_examples:
@@ -62,7 +66,7 @@ def IoU(lc_a, lc_b, cla):
     if union == 0:
         return None
     return len(((lc_a == cla) | (lc_b == cla))[(lc_a == cla) & (lc_b == cla)]) / union
-num_classes = 14
+
 def calc_single_IoUs(lc_a, lc_b):
     """
     Calculates the mean IoU,
@@ -70,7 +74,7 @@ def calc_single_IoUs(lc_a, lc_b):
     """
     c_ratio = []
     ious = []
-    for c in range(num_classes):
+    for c in range(config.num_classes):
         iou = IoU(lc_a, lc_b, c)
         n = lc_a.shape[0] * lc_a.shape[1]
         if iou != None:
@@ -89,14 +93,15 @@ def calc_all_IoUs(lc_a, lc_b):
 
 def test():
     device = "cpu" #"cuda" if torch.cuda.is_available() else "cpu"
-    model_dir = "results/landcover_run2/models/lc_model.pt"
+    results_dir = "results/landcover_run3"
+    model_dir = f"{results_dir}/models/lc_model.pt"
     lc_model = LandcoverModel().to(device)
     lc_model.load_state_dict(torch.load(model_dir))
     num_examples = 50
     dataset = SatelliteDataset("../../data/grid_dir/val/", num_examples)
     loader = DataLoader(dataset, 1)
 
-    save_example(lc_model, loader, 50, "results/landcover_run2/random_examples", device, num_examples)
+    save_example(lc_model, loader, 50, f"{results_dir}/random_examples", device, num_examples)
 
 
 

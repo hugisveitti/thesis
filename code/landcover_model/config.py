@@ -3,6 +3,8 @@ import torch
 IMAGE_WIDTH = 256
 IMAGE_HEIGHT = 256
 
+num_classes = 9
+
 tensor_type = torch.HalfTensor
 device = "cuda"
 
