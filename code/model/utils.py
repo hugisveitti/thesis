@@ -147,7 +147,7 @@ class StyleLoss(nn.Module):
         # Why so many infs???
         # not always inf but sometimes
         # the generator is not apart of this computation graph so I dont think this works.
-        if style_loss.isinf().any():
+        if style_loss.isinf().any() or style_loss.isnan().any():
             return torch.tensor(1., requires_grad=True).to(config.device)
         return style_loss
 

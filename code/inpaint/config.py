@@ -1,7 +1,7 @@
 import torch
 
 tensor_type = torch.HalfTensor
-local_area_margin = 16
+local_area_margin = 8
 num_inpaints = 3
 
 num_classes = 9

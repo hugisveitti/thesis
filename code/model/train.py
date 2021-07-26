@@ -31,7 +31,6 @@ parser.add_argument("--val_batch_size", type=int, default=8)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--losses_dir", type=str, default="losses")
 parser.add_argument("--models_dir", type=str, default="models/")
-parser.add_argument("--use_sigmoid", type=bool, default=False)
 parser.add_argument("--log_file", type=str, default="training_log.txt")
 parser.add_argument("--use_dynamic_lambdas", type=bool, default=False)
 parser.add_argument("--landcover_model_file", type=str, default="../landcover_model/models/lc_model.pt")
@@ -39,13 +38,14 @@ parser.add_argument("--landcover_model_file", type=str, default="../landcover_mo
 parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
 parser.add_argument("--g_style_lambda", type=float, default=0.)
-parser.add_argument("--g_adv_lambda", type=float, default=0.1)
+parser.add_argument("--g_adv_lambda", type=float, default=0.3)
 parser.add_argument("--g_pixel_lambda", type=float, default=0.5)
 parser.add_argument("--id_lambda", type=float, default=0.15)
 parser.add_argument("--local_g_style_lambda", type=float, default=0.25)
 parser.add_argument("--local_g_feature_lambda", type=float, default=0.25)
 parser.add_argument("--local_g_pixel_lambda", type=float, default=0.0)
 parser.add_argument("--g_gen_lc_lambda", type=float, default=0.3)
+parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 
 args = parser.parse_args()
 
@@ -55,14 +55,16 @@ g_pixel_lambda = args.g_pixel_lambda
 id_lambda = args.id_lambda
 local_g_style_lambda = args.local_g_style_lambda
 local_g_pixel_lambda = args.local_g_pixel_lambda
-local_g_feature_lambda = args.local_g_pixel_lambda
+local_g_feature_lambda = args.local_g_feature_lambda
 g_gen_lc_lambda = args.g_gen_lc_lambda
 
 min_lambda_value = 0.05
 
 losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_feature_loss","g_pixel_id_loss","g_feature_id_loss", "g_gen_lc_loss", "local_g_style_loss", "local_g_pixel_loss", "local_g_feature_loss"]
 possible_ious = ["iou_gen_lc_fake_a_vs_gen_lc_a", "iou_gen_lc_fake_a_vs_lc_a", "iou_gen_lc_a_vs_lc_a"]
-lambdas_names = ["g_feature_loss_lambda", "g_adv_lambda", "g_pixel_lambda", "local_g_style_lambda", "local_g_pixel_lambda"]
+
+
+dynamic_lambdas_names = ["g_feature_loss_lambda", "g_adv_lambda", "g_pixel_lambda", "local_g_style_lambda", "local_g_pixel_lambda", "local_g_feature_lambda"]
 
 # to dynamically change loss lambdas,
 # Not include id or lc_gen_lambda
@@ -91,10 +93,10 @@ class Train:
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
-        d = SatelliteDataset(os.path.join(data_dir,"train"))
+        d = SatelliteDataset(os.path.join(data_dir,"train"), 1000)
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = SatelliteDataset(os.path.join(data_dir,"val"))
+        d_val = SatelliteDataset(os.path.join(data_dir,"val"), 100)
         self.val_loader = DataLoader(d_val, batch_size=args.val_batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
@@ -106,16 +108,14 @@ class Train:
         self.landcover_model = LandcoverModel().to(device)
         self.landcover_model.load_state_dict(torch.load(args.landcover_model_file))
         
-        self.pixel_loss_fn = nn.SmoothL1Loss()
+        self.pixel_loss_fn = nn.SmoothL1Loss(beta=args.smooth_l1_beta)
         self.adv_loss_fn = nn.MSELoss()
         self.style_loss_fn = StyleLoss(self.relu3_3, device)
-        # self.class_loss_fn = nn.CrossEntropyLoss(weight=config.cross_entropy_weights)
-        # nllloss =  nn.NLLLoss(1-config.cross_entropy_weights)
         # Don't use weighted class loss, since we don't have an unbalaced training set, just that the classes are unbalaced
         # but they have a similar balance in the validation set.
         self.class_loss_fn = nn.CrossEntropyLoss()
 
-        self.feature_loss_fn = nn.SmoothL1Loss()
+        self.feature_loss_fn = nn.SmoothL1Loss(beta=args.smooth_l1_beta)
         
         self.models_dir = args.models_dir
         self.loop_description = ""
@@ -236,9 +236,6 @@ epoch: {self.loop_description}
                 rgb_a_aug, lc_a_aug = apply_augmentations(rgb_a, lc_a, types=['blit', 'noise'])
                 gen_lc_a, d_patchGAN_real = self.discriminator(rgb_a_aug)
 
-                if args.use_sigmoid:
-                    d_patchGAN_fake = torch.sigmoid(d_patchGAN_fake)
-                    d_patchGAN_real = torch.sigmoid(d_patchGAN_real)
 
                 # is this the correct use of adv loss? PatchGAN https://github.com/znxlwm/pytorch-pix2pix/blob/3059f2af53324e77089bbcfc31279f01a38c40b8/pytorch_pix2pix.py 
                 # uses BCE_Loss
@@ -269,8 +266,6 @@ epoch: {self.loop_description}
                 # Use landcover model for lc_gen_fake?
                 lc_gen_fake = self.landcover_model(fake_img)
                 lc_gen_fake = torch.softmax(lc_gen_fake, dim=1)
-                if args.use_sigmoid:
-                    g_patchGAN = torch.sigmoid(g_patchGAN)
 
                 if all_lambdas["g_adv_lambda"][0] == 0:
                     g_adv_loss = torch.tensor(0)
@@ -336,9 +331,10 @@ epoch: {self.loop_description}
 
                         # use features of the new area (rgb_ab)
                         if all_lambdas["local_g_feature_lambda"][0] != 0:
-                            gen_local_feature = self.relu3_3(gen_local_area)
-                            rgb_ab_local_feature = self.relu3_3(rgb_ab_local_area)  
-                            local_g_feature_loss += self.feature_loss(gen_local_feature, rgb_ab_local_feature)
+                            c, w, h = gen_local_area.shape
+                            gen_local_feature = self.relu3_3(gen_local_area.reshape(1, c, w, h))
+                            rgb_ab_local_feature = self.relu3_3(rgb_ab_local_area.reshape(1, c, w, h))  
+                            local_g_feature_loss += self.feature_loss_fn(gen_local_feature, rgb_ab_local_feature)
 
 
                         fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
@@ -368,8 +364,9 @@ epoch: {self.loop_description}
 
              
                 local_g_pixel_loss = local_g_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
-                
                 local_g_style_loss = local_g_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
+                local_g_feature_loss = local_g_feature_loss / (len(masked_areas[0][0]) * config.num_inpaints)
+
 
                 g_loss = (
                     (g_adv_loss * all_lambdas["g_adv_lambda"][0])
@@ -410,11 +407,11 @@ epoch: {self.loop_description}
         # dynamically change the lambdas, based off how bad their loss is
         if self.use_dynamic_lambdas:
             total_g_loss = 0 
-            for lamdba_name in lambdas_names:
+            for lamdba_name in dynamic_lambdas_names:
                 loss_name = all_lambdas[lamdba_name][1]
                 total_g_loss += epoch_losses[loss_name]
 
-            for lamdba_name in lambdas_names:
+            for lamdba_name in dynamic_lambdas_names:
                 loss_name = all_lambdas[lamdba_name][1]
                 # if lambda is 0 then it's value won't increase 
                 if all_lambdas[lamdba_name][0] != 0:
