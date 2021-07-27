@@ -5,33 +5,16 @@ from code.inpaint.generator import Generator as InpaintGenerator
 import os
 import torch
 import numpy as np
+from draw_tool.draw_models_utils import  num_classes, tensor_type, possible_lc_classes
 
-possible_lc_classes = {
-    str([255, 255, 255]): 0,
-    str([210, 0, 0]): 1,
-    str([253, 211, 39]): 2,
-    str([176, 91, 16]): 3,
-    str([35, 152, 0]): 4,
-    str([8, 98, 0]): 5,
-    str([249, 150, 39]): 6,
-    str([141, 139, 0]): 7,
-    str([95, 53, 6]): 8,
-    str([149, 107, 196,]): 9,
-    str([77, 37, 106,]): 10,
-    str([154, 154, 154,]): 11,
-    str([106, 255, 255,]): 12,
-    str([20, 69, 249,]): 13,
-}
-
-tensor_type = torch.FloatTensor
 
 def get_onehot(num):
-    arr = np.zeros(14)
+    arr = np.zeros(num_classes)
     arr[num] = 1
     return arr
 
 def convert_to_classes(lc):
-    lc_classes = np.zeros((lc.shape[0],lc.shape[1],14))
+    lc_classes = np.zeros((lc.shape[0],lc.shape[1], num_classes))
     for i in range(lc.shape[0]):
         for j in range(lc.shape[1]):
             lc_classes[i,j, possible_lc_classes[str(lc[i,j].tolist())]] = 1
@@ -44,26 +27,32 @@ def process(ma):
     ma = ma.type(tensor_type)
     return ma
 
-# generator_file = "code/model/results/run2/models/generator.pt"
-# generator = Generator()
-# generator.load_state_dict(torch.load(generator_file))
+generator_file1 = "code/model/results/run12/models/generator.pt"
+generator1 = Generator()
+generator1.load_state_dict(torch.load(generator_file1))
+
+generator_file2 = "code/model/results/run13/models/generator.pt"
+generator2 = Generator()
+generator2.load_state_dict(torch.load(generator_file2))
 
 
-old_generator_file = "code/model/results/run1/models/generator.pt"
-old_generator = OldGenerator()
-old_generator.load_state_dict(torch.load(old_generator_file))
-generator = old_generator
+# old_generator_file = "code/model/results/run1/models/generator.pt"
+# old_generator = OldGenerator()
+# old_generator.load_state_dict(torch.load(old_generator_file))
+# generator = old_generator
 
 
-inpaint_generator_file = "code/inpaint/results/inpaint_run1/models/generator.pt"
-inp_generator = InpaintGenerator()
-inp_generator.load_state_dict(torch.load(inpaint_generator_file))
+inpaint_generator_file = "code/inpaint/results/inpaint_run3/models/generator.pt"
+inpaint_generator = InpaintGenerator()
+inpaint_generator.load_state_dict(torch.load(inpaint_generator_file))
 
 c_dir = "draw_tool/testsetup"
 if not os.path.exists(c_dir):
     os.mkdir(c_dir)
 
-def handle_images(d, use_inpaint=True):
+# model_name can be 'inpaint', mixlc1, mixlc2
+def handle_images(d, model_name):
+    use_inpaint = model_name == 'inpaint'
     rgb = d["rgb"]
     lc = d["lc"]
     binary_mask = d["binaryMask"]
@@ -108,10 +97,15 @@ def handle_images(d, use_inpaint=True):
     binary_mask = binary_mask.type(tensor_type)
 
 
-    if not use_inpaint:
-        fake_img = generator(rgb, lc_classes, binary_mask)
+    if model_name == 'mixlc1':
+        fake_img = generator1(rgb, lc_classes, binary_mask)
+    elif model_name == 'mixlc2':
+        fake_img = generator2(rgb, lc_classes, binary_mask)
+    elif model_name == 'inpaint':
+        fake_img = inpaint_generator(rgb, lc_classes)
     else:
-        fake_img = inp_generator(rgb, lc_classes)
+        print("unsupported model name")
+        exit()
 
     fake_img = fake_img.cpu().detach().numpy()[0]
     fake_img = np.moveaxis(fake_img, 0, -1)

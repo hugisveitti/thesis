@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
-import config
+# import config
+class Config:
+    def __init__(self):
+        self.num_classes = 9
+config = Config()
+
 
 class Block(nn.Module):
 

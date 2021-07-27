@@ -61,8 +61,8 @@ class Serv(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
-        use_inpaint = self.path.split("/")[2] == "inpaint"
-        fake_img = handle_images(message, use_inpaint)
+        model_name = self.path.split("/")[2]
+        fake_img = handle_images(message, model_name)
         self.wfile.write(bytes(json.dumps((fake_img.flatten()).tolist()),'utf-8'))
 
 def run_server():
