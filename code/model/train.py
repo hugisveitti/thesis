@@ -37,19 +37,19 @@ parser.add_argument("--landcover_model_file", type=str, default="../landcover_mo
 # activate dynamic lambdas after certain epoch, if -1 then never
 parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
-parser.add_argument("--g_style_lambda", type=float, default=0.)
+parser.add_argument("--g_feature_lambda", type=float, default=0.)
 parser.add_argument("--g_adv_lambda", type=float, default=0.3)
 parser.add_argument("--g_pixel_lambda", type=float, default=0.5)
 parser.add_argument("--id_lambda", type=float, default=0.15)
 parser.add_argument("--local_g_style_lambda", type=float, default=0.25)
 parser.add_argument("--local_g_feature_lambda", type=float, default=0.25)
-parser.add_argument("--local_g_pixel_lambda", type=float, default=0.0)
+parser.add_argument("--local_g_pixel_lambda", type=float, default=0.)
 parser.add_argument("--g_gen_lc_lambda", type=float, default=0.3)
 parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 
 args = parser.parse_args()
 
-g_style_lambda = args.g_style_lambda
+g_feature_lambda = args.g_feature_lambda
 g_adv_lambda = args.g_adv_lambda
 g_pixel_lambda = args.g_pixel_lambda
 id_lambda = args.id_lambda
@@ -70,7 +70,7 @@ dynamic_lambdas_names = ["g_feature_loss_lambda", "g_adv_lambda", "g_pixel_lambd
 # Not include id or lc_gen_lambda
 # Not lc_gen_lambda, because I am not sure if crossEntropyLoss will be zero...
 all_lambdas = {
-    "g_feature_loss_lambda":[g_style_lambda, "g_feature_loss"], 
+    "g_feature_loss_lambda":[g_feature_lambda, "g_feature_loss"], 
     "g_adv_lambda": [g_adv_lambda, "g_adv_loss"], 
     "g_pixel_lambda":[g_pixel_lambda, "g_pixel_loss"], 
     "local_g_style_lambda":[local_g_style_lambda, "local_g_style_loss"], 
@@ -93,10 +93,10 @@ class Train:
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
-        d = SatelliteDataset(os.path.join(data_dir,"train"), 1000)
+        d = SatelliteDataset(os.path.join(data_dir,"train"))
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = SatelliteDataset(os.path.join(data_dir,"val"), 100)
+        d_val = SatelliteDataset(os.path.join(data_dir,"val"))
         self.val_loader = DataLoader(d_val, batch_size=args.val_batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
@@ -157,7 +157,7 @@ class Train:
         self.add_lambdas_to_log()
         log_string = f"""
 ======= LAMBDAS =======
-g_style_lambda = {g_style_lambda}
+g_feature_lambda = {g_feature_lambda}
 g_adv_lambda = {g_adv_lambda}
 g_pixel_lambda = {g_pixel_lambda}
 id_lambda = {id_lambda}
@@ -268,7 +268,7 @@ epoch: {self.loop_description}
                 lc_gen_fake = torch.softmax(lc_gen_fake, dim=1)
 
                 if all_lambdas["g_adv_lambda"][0] == 0:
-                    g_adv_loss = torch.tensor(0)
+                    g_adv_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     g_adv_loss = self.adv_loss_fn(g_patchGAN, torch.ones_like(g_patchGAN))
 
@@ -277,7 +277,7 @@ epoch: {self.loop_description}
                 # https://discuss.pytorch.org/t/optimizing-based-on-another-models-output/6935
                 # Because fake_img, from self.generator is part of the computational graph of g_adv_loss, this does work in training the generator.
                 if all_lambdas["local_g_style_lambda"][0] == 0:
-                    g_gen_lc_loss = torch.tensor(0)
+                    g_gen_lc_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     # use accuracy?
                     # g_gen_lc_loss = self.class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
@@ -285,8 +285,8 @@ epoch: {self.loop_description}
 
 
                 if id_lambda == 0:
-                    g_pixel_id_loss = torch.tensor(0)
-                    g_feature_id_loss = torch.tensor(0)
+                    g_pixel_id_loss = torch.tensor(0., requires_grad=True).to(device)
+                    g_feature_id_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     id_img = self.generator(rgb_a, lc_a, torch.zeros_like(binary_mask).to(device))
                     g_pixel_id_loss = self.pixel_loss_fn(id_img, rgb_a)
@@ -322,14 +322,13 @@ epoch: {self.loop_description}
                         # old area
                         rgb_a_local_area = rgb_a[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
                         
-                        # use style of the old area (rgb_a)
+                    
                         if all_lambdas["local_g_style_lambda"][0] != 0:
-                            local_g_style_loss += self.style_loss_fn(gen_local_area, rgb_a_local_area)
+                            local_g_style_loss += self.style_loss_fn(gen_local_area, rgb_ab_local_area)
                         
                         if all_lambdas["local_g_pixel_lambda"][0] != 0:
                             local_g_pixel_loss += self.pixel_loss_fn(gen_local_area, rgb_ab_local_area)
 
-                        # use features of the new area (rgb_ab)
                         if all_lambdas["local_g_feature_lambda"][0] != 0:
                             c, w, h = gen_local_area.shape
                             gen_local_feature = self.relu3_3(gen_local_area.reshape(1, c, w, h))
@@ -342,21 +341,20 @@ epoch: {self.loop_description}
 
 
                 if local_g_style_loss == 0:
-                    local_g_style_loss = torch.tensor(0)
+                    local_g_style_loss = torch.tensor(0., requires_grad=True).to(device)
                 if local_g_pixel_loss == 0:
-                    local_g_pixel_loss = torch.tensor(0)
+                    local_g_pixel_loss = torch.tensor(0., requires_grad=True).to(device)
                 if local_g_feature_loss == 0:
-                    local_g_feature_loss = torch.tensor(0)
+                    local_g_feature_loss = torch.tensor(0., requires_grad=True).to(device)
 
                 # Don't calculate if lambda is 0, since
                 if all_lambdas["g_pixel_lambda"][0] == 0:
-                    g_pixel_loss = torch.tensor(0)
+                    g_pixel_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     g_pixel_loss = self.pixel_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
                 
-
                 if all_lambdas["g_feature_loss_lambda"][0] == 0:
-                    g_feature_loss = torch.tensor(0)
+                    g_feature_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     fake_img_feature = self.relu3_3(fake_img_unchanged_area)
                     rgb_a_feature = self.relu3_3(rgb_a_unchanged_area)                    
@@ -378,7 +376,9 @@ epoch: {self.loop_description}
                     )
                     + (local_g_style_loss * all_lambdas["local_g_style_lambda"][0])
                     + (local_g_pixel_loss * all_lambdas["local_g_pixel_lambda"][0])
-                )
+                    + (local_g_feature_loss * all_lambdas["local_g_pixel_lambda"][0])
+                )  
+
 
 
                 if evaluation:
@@ -392,6 +392,19 @@ epoch: {self.loop_description}
                     iou_gen_lc_a_vs_lc_a = calc_all_IoUs(lc_a, gen_lc_a)
 
             if not evaluation:
+
+                # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+                # Uncomment this if you want to save the visualization of the computational graph #
+                # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+                # from torchviz import make_dot
+                # for loss in losses_names:
+                #     if loss[0] != "d":
+                #         print(loss, eval(loss))
+                #         scaler.scale(eval(loss)).backward(retain_graph=True)
+                #         make_dot(eval(loss)).render(f"graphs/{loss}_graph", format="png")
+                # exit()
+                # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    
                 scaler.scale(g_loss).backward()
                 scaler.step(self.gen_opt)
                 scaler.update()

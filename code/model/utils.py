@@ -148,7 +148,8 @@ class StyleLoss(nn.Module):
         # not always inf but sometimes
         # the generator is not apart of this computation graph so I dont think this works.
         if style_loss.isinf().any() or style_loss.isnan().any():
-            return torch.tensor(1., requires_grad=True).to(config.device)
+            # Doesn't matter if 0 or 1 since it is not a part of the computational graph
+            return torch.tensor(0., requires_grad=True).to(config.device)
         return style_loss
 
 
