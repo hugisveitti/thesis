@@ -43,3 +43,5 @@ results4/
 *.qgz
 
 training_log*
+
+graphs/
