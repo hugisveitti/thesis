@@ -252,6 +252,20 @@ epoch: {self.loop_description}
                 d_loss = (d_fake_loss + d_real_loss + d_lc_real_loss) / 2
             
             if not evaluation:
+                # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+                # Uncomment this if you want to save the visualization of the computational graph for the discriminator #
+                # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+                # from torchviz import make_dot
+                # if not os.path.exists("graphs"):
+                #     os.mkdir("graphs")
+                # for loss in losses_names:
+                #     if loss[0] == "d":
+                #         print(loss, eval(loss))
+                #         scaler.scale(eval(loss)).backward(retain_graph=True)
+                #         make_dot(eval(loss), show_attrs=True, show_saved=True).render(f"graphs/{loss}_graph") #.render(f"graphs/{loss}_graph", format="png")
+                # exit()
+                # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    
                 scaler.scale(d_loss).backward()
                 scaler.step(self.disc_opt)
                 scaler.update()
@@ -276,7 +290,7 @@ epoch: {self.loop_description}
                 # btw does this work as I expect?
                 # https://discuss.pytorch.org/t/optimizing-based-on-another-models-output/6935
                 # Because fake_img, from self.generator is part of the computational graph of g_adv_loss, this does work in training the generator.
-                if all_lambdas["local_g_style_lambda"][0] == 0:
+                if g_gen_lc_lambda == 0:
                     g_gen_lc_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     # use accuracy?
@@ -336,8 +350,10 @@ epoch: {self.loop_description}
                             local_g_feature_loss += self.feature_loss_fn(gen_local_feature, rgb_ab_local_feature)
 
 
-                        fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
-                        rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        # fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        # rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        fake_img_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
+                        rgb_a_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
 
 
                 if local_g_style_loss == 0:
@@ -358,8 +374,7 @@ epoch: {self.loop_description}
                 else:
                     fake_img_feature = self.relu3_3(fake_img_unchanged_area)
                     rgb_a_feature = self.relu3_3(rgb_a_unchanged_area)                    
-                    g_feature_loss = self.feature_loss_fn(fake_img_unchanged_area, rgb_a_unchanged_area)
-
+                    g_feature_loss = self.feature_loss_fn(fake_img_feature, rgb_a_feature)
              
                 local_g_pixel_loss = local_g_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)
                 local_g_style_loss = local_g_style_loss / (len(masked_areas[0][0]) * config.num_inpaints)
@@ -376,7 +391,7 @@ epoch: {self.loop_description}
                     )
                     + (local_g_style_loss * all_lambdas["local_g_style_lambda"][0])
                     + (local_g_pixel_loss * all_lambdas["local_g_pixel_lambda"][0])
-                    + (local_g_feature_loss * all_lambdas["local_g_pixel_lambda"][0])
+                    + (local_g_feature_loss * all_lambdas["local_g_feature_lambda"][0])
                 )  
 
 

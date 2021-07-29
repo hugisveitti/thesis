@@ -44,7 +44,7 @@ parser.add_argument("--g_pixel_lambda", type=float, default=0.5)
 parser.add_argument("--id_lambda", type=float, default=0.15)
 parser.add_argument("--local_g_style_lambda", type=float, default=0.25)
 parser.add_argument("--local_g_feature_lambda", type=float, default=0.25)
-parser.add_argument("--local_g_pixel_lambda", type=float, default=0.0)
+parser.add_argument("--local_g_pixel_lambda", type=float, default=0.5)
 parser.add_argument("--g_gen_lc_lambda", type=float, default=0.3)
 parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 
@@ -343,7 +343,7 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
                 else:
                     fake_img_feature = self.relu3_3(fake_img_unchanged_area)
                     rgb_feature = self.relu3_3(rgb_unchanged_area)                    
-                    g_feature_loss = self.feature_loss_fn(fake_img_unchanged_area, rgb_unchanged_area)
+                    g_feature_loss = self.feature_loss_fn(fake_img_feature, rgb_feature)
 
              
                 local_g_pixel_loss = local_g_pixel_loss / (len(masked_areas[0][0]) * config.num_inpaints)

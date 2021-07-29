@@ -24,7 +24,7 @@ other_class = torch.zeros(config.num_classes)
 other_class[0] = 1
 
 # seed for reproducability
-rng = np.random.RandomState(112233)
+
 
 class SatelliteDataset(Dataset):
 
@@ -33,6 +33,7 @@ class SatelliteDataset(Dataset):
         self.root_dir = root_dir
         self.rgb_files = os.listdir(os.path.join(self.root_dir, "rgb"))
         self.len = num_samples if num_samples else len(self.rgb_files)
+        self.rng = np.random.RandomState(112233)
 
     def open_img(self, idx):
         with Image.open(os.path.join(self.root_dir, "rgb", self.rgb_files[idx])) as img:
@@ -49,17 +50,17 @@ class SatelliteDataset(Dataset):
 
     def create_mask(self, lc_a, lc_b, lc_ab, binary_mask, rgb_b, rgb_ab):
         
-        mask_size_w = rng.randint(32, 64)
-        mask_size_h = rng.randint(32, 64)
+        mask_size_w = self.rng.randint(32, 64)
+        mask_size_h = self.rng.randint(32, 64)
         
-        r_w = rng.randint(config.local_area_margin, lc_ab.shape[1] - mask_size_w - config.local_area_margin)
-        r_h = rng.randint(config.local_area_margin, lc_ab.shape[2] - mask_size_h - config.local_area_margin)
+        r_w = self.rng.randint(config.local_area_margin, lc_ab.shape[1] - mask_size_w - config.local_area_margin)
+        r_h = self.rng.randint(config.local_area_margin, lc_ab.shape[2] - mask_size_h - config.local_area_margin)
 
         # if squared mask then the binary mask will always 1
         # if not squared then the binary mask will 0 if lc_a[i,j] == lc_b[i,j]
         # That is we will sometimes ask for the generated image not to be changed under the mask
         # if the lc's match. I believe this will make the model more robust to different inpainting shapes.
-        squared_mask = rng.random() < 0.5
+        squared_mask = self.rng.random() < 0.5
 
         for i in range(r_w, r_w + mask_size_w):
             for j in range(r_h, r_h + mask_size_h):
@@ -106,7 +107,7 @@ class SatelliteDataset(Dataset):
         return self.len 
 
     def __getitem__(self, idx_a):
-        idx_b = rng.randint(self.len)
+        idx_b = self.rng.randint(self.len)
 
         rgb_a = self.open_img(idx_a)
         lc_a = self.open_classes(idx_a)
@@ -117,7 +118,7 @@ class SatelliteDataset(Dataset):
         images = [rgb_a, rgb_b, lc_a, lc_b]
 
         for transf in transf_types:
-            if rng.random() < 0.25:
+            if self.rng.random() < 0.25:
                 for i in range(len(images)):
                     images[i] = transf(images[i])
 
@@ -143,7 +144,7 @@ def test():
     ds = SatelliteDataset("../../data/grid_dir/val")
     loader = DataLoader(ds, 4)
     i = 0
-    num_examples = 5
+    num_examples = 3
     
     for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
         rgb_a = unprocess(rgb_a)
