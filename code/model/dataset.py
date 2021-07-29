@@ -202,5 +202,5 @@ def test_utils():
     save_example(g, discriminator, "testsetup", 0, l, device)
 
 if __name__ == "__main__":
-    test()
-    #test_utils()
+    #test()
+    test_utils()

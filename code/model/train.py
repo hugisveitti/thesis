@@ -294,7 +294,6 @@ epoch: {self.loop_description}
                     g_gen_lc_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     # use accuracy?
-                    # g_gen_lc_loss = self.class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
                     g_gen_lc_loss = self.class_loss_fn(lc_gen_fake, torch.argmax(lc_ab, 1))
 
 

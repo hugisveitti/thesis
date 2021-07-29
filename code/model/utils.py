@@ -24,10 +24,10 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
     example = 0
     
     for rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
-        rgb_a, rgb_b, lc_a, lc_b, binary_mask = rgb_a.to(device), rgb_b.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device)
+        rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab = rgb_a.to(device), rgb_b.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device), lc_ab.to(device)
 
         with torch.cuda.amp.autocast():
-            fake_img = generator(rgb_a, lc_a, binary_mask)
+            fake_img = generator(rgb_a, lc_ab, binary_mask)
             gen_lc, _ = discriminator(rgb_a)
             fake_gen_lc, _ = discriminator(fake_img)
             if torch.isnan(fake_img).any():
@@ -41,7 +41,7 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
             fake_img = np.array(fake_img, dtype=np.float32)
 
             rgb_a = unprocess(rgb_a.cpu())
-            lc_ab = unprocess(lc_ab.cpu(), )
+            lc_ab = unprocess(lc_ab.cpu())
             lc_ab = create_img_from_classes(lc_ab)
             binary_mask = np.array(binary_mask.cpu())[0][0]
 
