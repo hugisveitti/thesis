@@ -113,7 +113,7 @@ device = "cpu"
 num_samples = 15
 ds = SatelliteDataset("../../data/grid_dir/val", num_samples)
 loader = DataLoader(ds, 1)
-for i in range(19, 22):
+for i in range(17, 18):
     
     results_dir = f"results/run{i}"
     print(f"results dir: {results_dir}")

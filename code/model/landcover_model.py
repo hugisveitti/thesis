@@ -15,7 +15,7 @@ class Block(nn.Module):
                 nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1,padding=1)
             ) 
 
-        activation = nn.ELU() # nn.LeakyReLU(0.2) if down else nn.ReLU()
+        activation = nn.ELU() 
 
         self.block = nn.Sequential(
             conv_layer,
@@ -85,7 +85,7 @@ def test():
 
     import numpy as np
     n_params = sum([np.prod(p.size()) for p in d.parameters()])
-    print("number of parameters in discriminator", n_params)
+    print("number of parameters in landcover model", n_params)
 
 
 if __name__ == "__main__":

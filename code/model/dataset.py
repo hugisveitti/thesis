@@ -8,10 +8,7 @@ import os
 import config
 
 flip_horizontal = T.RandomHorizontalFlip(p=1)
-
 flip_vertical = T.RandomVerticalFlip(p=1)
-
-
 rand_rotation_90 = T.RandomRotation(90) # -90 or 90
 rand_rotation_180 = T.RandomRotation(180) # -180 or 180
 
@@ -33,7 +30,7 @@ class SatelliteDataset(Dataset):
         self.root_dir = root_dir
         self.rgb_files = os.listdir(os.path.join(self.root_dir, "rgb"))
         self.len = num_samples if num_samples else len(self.rgb_files)
-        self.rng = np.random.RandomState(112233)
+
 
     def open_img(self, idx):
         with Image.open(os.path.join(self.root_dir, "rgb", self.rgb_files[idx])) as img:
@@ -42,7 +39,7 @@ class SatelliteDataset(Dataset):
 
     def open_classes(self, idx):
         fn = self.rgb_files[idx].split(".")[0]
-        with np.load(os.path.join(self.root_dir, "reduced_classes", fn + ".npz")) as classes:
+        with np.load(os.path.join(self.root_dir, "lc_sieve", fn + ".npz")) as classes:
             classes = classes["arr_0"]
             classes = toTensor(classes)
             classes = classes.type(config.tensor_type)
@@ -50,17 +47,17 @@ class SatelliteDataset(Dataset):
 
     def create_mask(self, lc_a, lc_b, lc_ab, binary_mask, rgb_b, rgb_ab):
         
-        mask_size_w = self.rng.randint(32, 64)
-        mask_size_h = self.rng.randint(32, 64)
+        mask_size_w = np.random.randint(32, 64)
+        mask_size_h = np.random.randint(32, 64)
         
-        r_w = self.rng.randint(config.local_area_margin, lc_ab.shape[1] - mask_size_w - config.local_area_margin)
-        r_h = self.rng.randint(config.local_area_margin, lc_ab.shape[2] - mask_size_h - config.local_area_margin)
+        r_w = np.random.randint(config.local_area_margin, lc_ab.shape[1] - mask_size_w - config.local_area_margin)
+        r_h = np.random.randint(config.local_area_margin, lc_ab.shape[2] - mask_size_h - config.local_area_margin)
 
         # if squared mask then the binary mask will always 1
         # if not squared then the binary mask will 0 if lc_a[i,j] == lc_b[i,j]
         # That is we will sometimes ask for the generated image not to be changed under the mask
         # if the lc's match. I believe this will make the model more robust to different inpainting shapes.
-        squared_mask = self.rng.random() < 0.5
+        squared_mask = np.random.random() < 0.5
 
         for i in range(r_w, r_w + mask_size_w):
             for j in range(r_h, r_h + mask_size_h):
@@ -107,7 +104,7 @@ class SatelliteDataset(Dataset):
         return self.len 
 
     def __getitem__(self, idx_a):
-        idx_b = self.rng.randint(self.len)
+        idx_b = np.random.randint(self.len)
 
         rgb_a = self.open_img(idx_a)
         lc_a = self.open_classes(idx_a)
@@ -115,12 +112,13 @@ class SatelliteDataset(Dataset):
         rgb_b = self.open_img(idx_b)
         lc_b = self.open_classes(idx_b)
 
-        images = [rgb_a, rgb_b, lc_a, lc_b]
 
         for transf in transf_types:
-            if self.rng.random() < 0.25:
-                for i in range(len(images)):
-                    images[i] = transf(images[i])
+            if np.random.random() < 0.25:
+                rgb_a = transf(rgb_a)
+                rgb_b = transf(rgb_b)
+                lc_a = transf(lc_a)
+                lc_b = transf(lc_b)
 
 
         binary_mask = torch.zeros(1, lc_b.shape[1], lc_b.shape[2])
@@ -130,7 +128,6 @@ class SatelliteDataset(Dataset):
         num_inpaints = config.num_inpaints
         masked_areas = []
         for _ in range(num_inpaints):
-            #masked_area = self.create_mask(lc_a, lc_b, lc_ab, binary_mask)
             masked_area = self.create_mask(lc_a, lc_b, lc_ab, binary_mask, rgb_b, rgb_ab)
             masked_areas.append(masked_area)
 

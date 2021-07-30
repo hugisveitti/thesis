@@ -12,6 +12,7 @@ from generator import Generator
 from discriminator import Discriminator
 from landcover_model import LandcoverModel
 from dataset import SatelliteDataset
+from deterministic_dataset import DeterministicSatelliteDataset
 from utils import save_example, calc_all_IoUs, StyleLoss, calc_accuracy
 import config
 from plot_losses import plot_losses, plot_ious
@@ -96,7 +97,7 @@ class Train:
         d = SatelliteDataset(os.path.join(data_dir,"train"))
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = SatelliteDataset(os.path.join(data_dir,"val"))
+        d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
         self.val_loader = DataLoader(d_val, batch_size=args.val_batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
@@ -333,8 +334,7 @@ epoch: {self.loop_description}
                         # new area
                         rgb_ab_local_area = rgb_ab[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h - config.local_area_margin:r_h+mask_size_h + config.local_area_margin]
                         # old area
-                        rgb_a_local_area = rgb_a[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
-                        
+                        # rgb_a_local_area = rgb_a[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
                     
                         if all_lambdas["local_g_style_lambda"][0] != 0:
                             local_g_style_loss += self.style_loss_fn(gen_local_area, rgb_ab_local_area)
