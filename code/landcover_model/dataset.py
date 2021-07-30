@@ -1,18 +1,21 @@
 import torch 
 from torch.utils.data import Dataset, DataLoader
 import os
-import matplotlib.pyplot as plt
 import config
 import numpy as np
 from PIL import Image
-import json
 import torchvision.transforms as T
-from datautils import create_img_from_classes, unprocess
+
 
 
 flip_horizontal = T.RandomHorizontalFlip(p=1)
 flip_vertical = T.RandomVerticalFlip(p=1)
-color_jitter = T.ColorJitter()
+rand_rotation_90 = T.RandomRotation(90) # -90 or 90
+rand_rotation_180 = T.RandomRotation(180) # -180 or 180
+
+
+transf_types = [flip_horizontal]#, flip_vertical, rand_rotation_90, rand_rotation_180]
+
 toTensor = T.ToTensor()
 
 class SatelliteDataset(Dataset):
@@ -35,7 +38,7 @@ class SatelliteDataset(Dataset):
 
     def open_classes(self, idx):
         fn = self.rgb_files[idx].split(".")[0]
-        with np.load(os.path.join(self.root_dir, "reduced_classes", fn + ".npz")) as classes:
+        with np.load(os.path.join(self.root_dir, "lc_sieve", fn + ".npz")) as classes:
             classes = classes["arr_0"]
             classes = toTensor(classes)
             classes = classes.type(config.tensor_type)
@@ -43,27 +46,23 @@ class SatelliteDataset(Dataset):
     
     def __getitem__(self, idx):
 
-
         rgb = self.open_img(idx)
         lc = self.open_classes(idx)
 
+        images = [rgb, lc] 
 
-        if np.random.random() < 0.5:
-            rgb = flip_horizontal(rgb)
-            lc = flip_horizontal(lc)
-
-        if np.random.random() < 0.5:
-            rgb = flip_vertical(rgb)
-            lc = flip_vertical(lc)
-
-        # if np.random.random() < 0.5:
-        #     rgb = color_jitter(rgb)
+        for transf in transf_types:
+            if np.random.random() < 0.25:
+                rgb = transf(rgb)
+                lc = transf(lc)
 
         return rgb, lc
 
 def test():
+    import matplotlib.pyplot as plt
+    from datautils import create_img_from_classes, unprocess
     ds = SatelliteDataset("../../data/grid_dir/val/")
-    loader = DataLoader(ds,4)
+    loader = DataLoader(ds,1)
     for rgb, lc in loader:
         
         rgb = unprocess(rgb)
@@ -85,7 +84,6 @@ def test():
         plt.savefig(os.path.join(folder, "input_example.png"))
         plt.close
 
-        
         break
 
 
