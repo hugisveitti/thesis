@@ -8,11 +8,12 @@ import os
 import config
 
 flip_horizontal = T.RandomHorizontalFlip(p=1)
-
 flip_vertical = T.RandomVerticalFlip(p=1)
+rand_rotation_90 = T.RandomRotation(90) # -90 or 90
+rand_rotation_180 = T.RandomRotation(180) # -180 or 180
 
-def normalize(img):
-    return img 
+transf_types = [flip_horizontal, flip_vertical, rand_rotation_90, rand_rotation_180]
+
 toTensor = T.ToTensor()
 
 class SatelliteDataset(Dataset):
@@ -26,7 +27,6 @@ class SatelliteDataset(Dataset):
     def open_img(self, idx):
         with Image.open(os.path.join(self.root_dir, "rgb", self.rgb_files[idx])) as img:
             img = toTensor(img)[:3,:,:]
-            img = normalize(img)
         return img
 
     def open_classes(self, idx):
@@ -80,29 +80,25 @@ class SatelliteDataset(Dataset):
     def __len__(self):
         return self.len 
 
-    def __getitem__(self, idx_a):
+    def __getitem__(self, idx):
 
-        rgb_a = self.open_img(idx_a)
-        lc_a = self.open_classes(idx_a)
+        rgb = self.open_img(idx)
+        lc = self.open_classes(idx)
+
+        for transf in transf_types:
+            if np.random.random() < 0.25:
+                rgb = transf(rgb)
+                lc = transf(lc)
 
 
-        if np.random.random() < 0.5:
-            rgb_a = flip_horizontal(rgb_a)
-            lc_a = flip_horizontal(lc_a)
-
-        if np.random.random() < 0.5:
-            rgb_a = flip_vertical(rgb_a)
-            lc_a = flip_vertical(lc_a)
-
-        rgb_a_masked = rgb_a.clone()
+        rgb_masked = rgb.clone()
         num_inpaints = config.num_inpaints
         masked_areas = []
         for _ in range(num_inpaints):
-            #masked_area = self.create_mask(lc_a, lc_b, lc_ab, binary_mask)
-            masked_area = self.create_mask(rgb_a_masked)
+            masked_area = self.create_mask(rgb_masked)
             masked_areas.append(masked_area)
 
-        return rgb_a, lc_a, rgb_a_masked, masked_areas
+        return rgb, lc, rgb_masked, masked_areas
 
 
 def test():

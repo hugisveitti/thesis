@@ -95,12 +95,9 @@ class Train:
         d = SatelliteDataset(os.path.join(data_dir,"train"))
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = SatelliteDataset(os.path.join(data_dir,"val"))
+        d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
         self.val_loader = DataLoader(d_val, 1, num_workers=args.num_workers)
        
-        # det_d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
-        # self.det_val_loader = DataLoader(det_d_val, 1)
-
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
         print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
 
@@ -247,7 +244,7 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
             with flag_setting:
                 fake_img = self.generator(rgb_masked, lc)
 
-                fake_img_aug, _ = apply_augmentations(fake_img, None, types=['blit', 'noise'])
+                fake_img_aug, _ = apply_augmentations(fake_img, None, types=['blit'])
                 _, g_patchGAN = self.discriminator(fake_img_aug)
 
 
@@ -255,7 +252,7 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
                 lc_gen_fake = torch.softmax(lc_gen_fake, dim=1)
 
                 if all_lambdas["g_adv_lambda"][0] == 0:
-                    g_adv_loss = torch.tensor(0)
+                    g_adv_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     g_adv_loss = self.adv_loss_fn(g_patchGAN, torch.ones_like(g_patchGAN))
 
@@ -264,7 +261,7 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
                 # https://discuss.pytorch.org/t/optimizing-based-on-another-models-output/6935
                 # Because fake_img, from self.generator is part of the computational graph of g_adv_loss, this does work in training the generator.
                 if all_lambdas["local_g_style_lambda"][0] == 0:
-                    g_gen_lc_loss = torch.tensor(0)
+                    g_gen_lc_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     # use accuracy?
                     # g_gen_lc_loss = self.class_loss_fn(lc_gen_fake, torch.argmax(lc, 1))
@@ -272,8 +269,8 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
 
 
                 if id_lambda == 0:
-                    g_pixel_id_loss = torch.tensor(0)
-                    g_feature_id_loss = torch.tensor(0)
+                    g_pixel_id_loss = torch.tensor(0., requires_grad=True).to(device)
+                    g_feature_id_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     id_img = self.generator(rgb, lc)
                     g_pixel_id_loss = self.pixel_loss_fn(id_img, rgb)
@@ -320,26 +317,28 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
                             local_g_feature_loss += self.feature_loss_fn(gen_local_feature, rgb_local_feature)
 
 
-                        fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
-                        rgb_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        # fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        # rgb_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        fake_img_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
+                        rgb_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
 
 
                 if local_g_style_loss == 0:
-                    local_g_style_loss = torch.tensor(0)
+                    local_g_style_loss = torch.tensor(0., requires_grad=True).to(device)
                 if local_g_pixel_loss == 0:
-                    local_g_pixel_loss = torch.tensor(0)
+                    local_g_pixel_loss = torch.tensor(0., requires_grad=True).to(device)
                 if local_g_feature_loss == 0:
-                    local_g_feature_loss = torch.tensor(0)
+                    local_g_feature_loss = torch.tensor(0., requires_grad=True).to(device)
 
                 # Don't calculate if lambda is 0, since
                 if all_lambdas["g_pixel_lambda"][0] == 0:
-                    g_pixel_loss = torch.tensor(0)
+                    g_pixel_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     g_pixel_loss = self.pixel_loss_fn(fake_img_unchanged_area, rgb_unchanged_area)
                 
 
                 if all_lambdas["g_feature_loss_lambda"][0] == 0:
-                    g_feature_loss = torch.tensor(0)
+                    g_feature_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     fake_img_feature = self.relu3_3(fake_img_unchanged_area)
                     rgb_feature = self.relu3_3(rgb_unchanged_area)                    
@@ -361,6 +360,7 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
                     )
                     + (local_g_style_loss * all_lambdas["local_g_style_lambda"][0])
                     + (local_g_pixel_loss * all_lambdas["local_g_pixel_lambda"][0])
+                    + (local_g_feature_loss * all_lambdas["local_g_feature_lambda"][0])
                 )
 
                 if evaluation:
