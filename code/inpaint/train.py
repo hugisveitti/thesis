@@ -365,8 +365,8 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
 
                 if evaluation:
                     fake_a = self.generator(rgb, lc)
-                    gen_lc_fake_a, _ = self.discriminator(fake_a)
-                    gen_lc, _ = self.discriminator(rgb) 
+                    gen_lc_fake_a = self.landcover_model(fake_a)
+                    gen_lc = self.landcover_model(rgb) 
 
                     iou_gen_lc_fake_a_vs_gen_lc = calc_all_IoUs(gen_lc_fake_a, gen_lc)
                     iou_gen_lc_vs_lc = calc_all_IoUs(gen_lc, lc)
