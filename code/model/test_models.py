@@ -7,9 +7,11 @@ from generator import Generator
 from discriminator import Discriminator
 from datautils import unprocess, create_img_from_classes
 from dataset import SatelliteDataset
+from deterministic_dataset import DeterministicSatelliteDataset
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+import argparse
 
 def save_two_samples(generator, discriminator, folder, loader, device):
     # In pix2pix they talk about using the dropout as the random noise
@@ -108,27 +110,28 @@ def save_two_samples(generator, discriminator, folder, loader, device):
             plt.savefig(os.path.join(folder, "discriminator", f"{example}_fake.png"))
             plt.close()
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--data_dir", type=str, default="../../data/grid_dir/val")
+parser.add_argument("--num_samples", type=int, default=15)
+parser.add_argument("--run_dir", type=str, default="results/run24")
+parser.add_argument("--device", type=str, default="cpu")
 
-device = "cpu"
-num_samples = 15
-ds = SatelliteDataset("../../data/grid_dir/val", num_samples)
+
+args = parser.parse_args()
+device = args.device
+num_samples = args.num_samples
+ds = DeterministicSatelliteDataset(args.data_dir, num_samples)
 loader = DataLoader(ds, 1)
-for i in range(17, 18):
-    
-    results_dir = f"results/run{i}"
-    print(f"results dir: {results_dir}")
-    if os.path.exists(results_dir):
-        os.system(f"rm -rf {results_dir}/random_examples_two_images/")
 
-        g = Generator().to(device)
-        d = Discriminator().to(device)
-        try:
-            g.load_state_dict(torch.load(f"{results_dir}/models/generator.pt"))
-            d.load_state_dict(torch.load(f"{results_dir}/models/discriminator.pt"))
+results_dir = args.run_dir
+print(f"results dir: {results_dir}")
+if os.path.exists(results_dir):
+    g = Generator().to(device)
+    d = Discriminator().to(device)
+    try:
+        g.load_state_dict(torch.load(f"{results_dir}/models/generator.pt"))
+        d.load_state_dict(torch.load(f"{results_dir}/models/discriminator.pt"))
 
-            
-
-
-            save_two_samples(g, d, f"{results_dir}/random_examples_two_images/", loader, device)
-        except Exception as exception:
-            print("state dict probs dont fit", exception)
+        save_two_samples(g, d, f"{results_dir}/random_examples_two_images/", loader, device)
+    except Exception as exception:
+        print("state dict probs dont fit", exception)
