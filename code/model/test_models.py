@@ -113,7 +113,7 @@ def save_two_samples(generator, discriminator, folder, loader, device):
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_dir", type=str, default="../../data/grid_dir/val")
 parser.add_argument("--num_samples", type=int, default=15)
-parser.add_argument("--run_dir", type=str, default="results/run24")
+parser.add_argument("--run_dir", type=str, default="results/run31")
 parser.add_argument("--device", type=str, default="cpu")
 
 
@@ -123,15 +123,18 @@ num_samples = args.num_samples
 ds = DeterministicSatelliteDataset(args.data_dir, num_samples)
 loader = DataLoader(ds, 1)
 
-results_dir = args.run_dir
-print(f"results dir: {results_dir}")
-if os.path.exists(results_dir):
-    g = Generator().to(device)
-    d = Discriminator().to(device)
-    try:
-        g.load_state_dict(torch.load(f"{results_dir}/models/generator.pt"))
-        d.load_state_dict(torch.load(f"{results_dir}/models/discriminator.pt"))
 
-        save_two_samples(g, d, f"{results_dir}/random_examples_two_images/", loader, device)
-    except Exception as exception:
-        print("state dict probs dont fit", exception)
+results_dir = args.run_dir
+for run_n in range(30, 33):
+    results_dir = f"results/run{run_n}"
+    print(f"results dir: {results_dir}")
+    if os.path.exists(results_dir):
+        g = Generator().to(device)
+        d = Discriminator().to(device)
+        try:
+            g.load_state_dict(torch.load(f"{results_dir}/models/generator.pt"))
+            d.load_state_dict(torch.load(f"{results_dir}/models/discriminator.pt"))
+
+            save_two_samples(g, d, f"{results_dir}/random_examples_two_images/", loader, device)
+        except Exception as exception:
+            print("state dict probs dont fit", exception)

@@ -23,18 +23,17 @@ LEARNING_RATE = 0.0002
 scaler = torch.cuda.amp.GradScaler()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--data_dir", type=str, default="../../data/grid_dir")
 parser.add_argument("--load_models", type=bool, default=False)
+parser.add_argument("--data_dir", type=str, default="../../data/grid_dir")
 parser.add_argument("--eval_dir", type=str, default="eval")
+parser.add_argument("--losses_dir", type=str, default="losses")
+parser.add_argument("--models_dir", type=str, default="models/")
+parser.add_argument("--log_file", type=str, default="training_log.txt")
+parser.add_argument("--landcover_model_file", type=str, default="../landcover_model/models/lc_model.pt")
 parser.add_argument("--num_epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=8)
 parser.add_argument("--val_batch_size", type=int, default=8)
 parser.add_argument("--num_workers", type=int, default=4)
-parser.add_argument("--losses_dir", type=str, default="losses")
-parser.add_argument("--models_dir", type=str, default="models/")
-parser.add_argument("--log_file", type=str, default="training_log.txt")
-parser.add_argument("--use_dynamic_lambdas", type=bool, default=False)
-parser.add_argument("--landcover_model_file", type=str, default="../landcover_model/models/lc_model.pt")
 # activate dynamic lambdas after certain epoch, if -1 then never
 parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
@@ -48,8 +47,16 @@ parser.add_argument("--local_g_pixel_lambda", type=float, default=0.)
 parser.add_argument("--g_gen_lc_lambda", type=float, default=0.3)
 parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 
-args = parser.parse_args()
+# Should the changed areas have the style or feature from the new area or the old area
+parser.add_argument("--local_style_new", dest="local_style_new", action="store_true")
+parser.add_argument("--local_style_old", dest="local_style_new", action="store_false")
+parser.set_defaults(local_style_new=False)
+parser.add_argument("--local_feature_new", dest="local_style_new", action="store_true")
+parser.add_argument("--local_feature_old", dest="local_style_new", action="store_false")
+parser.set_defaults(local_feature_new=False)
 
+args = parser.parse_args()
+print(args)
 g_feature_lambda = args.g_feature_lambda
 g_adv_lambda = args.g_adv_lambda
 g_pixel_lambda = args.g_pixel_lambda
@@ -61,7 +68,7 @@ g_gen_lc_lambda = args.g_gen_lc_lambda
 
 min_lambda_value = 0.05
 
-losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_feature_loss","g_pixel_id_loss","g_feature_id_loss", "g_gen_lc_loss", "local_g_style_loss", "local_g_pixel_loss", "local_g_feature_loss"]
+losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_feature_loss","g_pixel_id_loss", "g_gen_lc_loss", "local_g_style_loss", "local_g_pixel_loss", "local_g_feature_loss"]
 possible_ious = ["iou_gen_lc_fake_a_vs_gen_lc_a", "iou_gen_lc_fake_a_vs_lc_a", "iou_gen_lc_a_vs_lc_a"]
 
 
@@ -94,14 +101,14 @@ class Train:
         self.gen_opt = torch.optim.Adam(self.generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
         self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
-        d = SatelliteDataset(os.path.join(data_dir,"train"))
+        d = SatelliteDataset(os.path.join(data_dir, "train"))
         self.loader = DataLoader(d, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
 
-        d_val = DeterministicSatelliteDataset(os.path.join(data_dir,"val"))
+        d_val = DeterministicSatelliteDataset(os.path.join(data_dir, "val"))
         self.val_loader = DataLoader(d_val, batch_size=args.val_batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
-        print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
+        print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_sieve')))} files in train/lc_sieve")
 
         vgg_model = torch.hub.load('pytorch/vision:v0.9.0', 'vgg16', pretrained=True).to(device)
         self.relu3_3 = torch.nn.Sequential(*vgg_model.features[:16])
@@ -115,35 +122,18 @@ class Train:
         # Don't use weighted class loss, since we don't have an unbalaced training set, just that the classes are unbalaced
         # but they have a similar balance in the validation set.
         self.class_loss_fn = nn.CrossEntropyLoss()
-
         self.feature_loss_fn = nn.SmoothL1Loss(beta=args.smooth_l1_beta)
         
         self.models_dir = args.models_dir
-        self.loop_description = ""
-        if args.load_models:
-            self.load_models()
+        self.loop_description = "" 
 
-        self.losses = {}
-        self.val_losses = {}
-        for name in losses_names:
-            self.losses[name] = []
-            self.val_losses[name] = []
-
-        self.ious = {}
-        for iou in possible_ious:
-            self.ious[iou] = []
-
-        if not os.path.exists(args.losses_dir):
-            os.mkdir(args.losses_dir)
-
-        
         self.losses_file = os.path.join(args.losses_dir, "train_losses.json")
         self.val_losses_file = os.path.join(args.losses_dir, "val_losses.json")
         self.iou_file = os.path.join(args.losses_dir, "iou.json")
 
         # if load_models then the files should exist
         if args.load_models:
-        
+            self.load_models()
             with open(self.losses_file, "r") as f:
                 self.losses = json.load(f)
 
@@ -152,8 +142,22 @@ class Train:
 
             with open(self.iou_file, "r") as f:
                 self.ious = json.load(f) 
+        else:
+            if not os.path.exists(args.losses_dir):
+                os.mkdir(args.losses_dir)
 
-        self.use_dynamic_lambdas = args.use_dynamic_lambdas
+            self.losses = {}
+            self.val_losses = {}
+            for name in losses_names:
+                self.losses[name] = []
+                self.val_losses[name] = []
+
+            self.ious = {}
+            for iou in possible_ious:
+                self.ious[iou] = []
+
+
+        self.use_dynamic_lambdas = False
 
         self.add_lambdas_to_log()
         log_string = f"""
@@ -174,7 +178,9 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
 
 
 
-    def add_lambdas_to_log(self,):
+    def add_lambdas_to_log(self):
+        # These are only the possible dynamic lamdbas
+        # might delete later 
         log_string = f"""
 ########\nLambdas:
 epoch: {self.loop_description}
@@ -213,11 +219,11 @@ epoch: {self.loop_description}
             for iou in possible_ious:
                 epoch_ious[iou] = 0
 
-        total = 0
+        total_batches = 0
 
         for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loop:
-            rgb_a, rgb_ab, lc_a, lc_b, binary_mask = rgb_a.to(device), rgb_ab.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device)
-            lc_ab = lc_ab.to(device)
+            rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab = rgb_a.to(device), rgb_ab.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device), lc_ab.to(device)
+            
 
             ## DISCRIMINATOR TRAIN
 
@@ -232,8 +238,7 @@ epoch: {self.loop_description}
                 fake_img_aug, _ = apply_augmentations(fake_img, None, types=['blit', 'noise'])
 
                 _, d_patchGAN_fake = self.discriminator(fake_img_aug)
-                # use sigmoid ?
-                # maybe use random image as rgb_a
+
                 rgb_a_aug, lc_a_aug = apply_augmentations(rgb_a, lc_a, types=['blit', 'noise'])
                 gen_lc_a, d_patchGAN_real = self.discriminator(rgb_a_aug)
 
@@ -241,7 +246,6 @@ epoch: {self.loop_description}
                 # is this the correct use of adv loss? PatchGAN https://github.com/znxlwm/pytorch-pix2pix/blob/3059f2af53324e77089bbcfc31279f01a38c40b8/pytorch_pix2pix.py 
                 # uses BCE_Loss
                 # LSGAN https://arxiv.org/abs/1611.04076 uses mse but no patches
-                #
                 # https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/cycle_gan_model.py
                 # In this they say they use PatchGAN, they do it like this and dont use sigmoid in discriminator
                 # and either use MSE or BCEWithLogits, and they do wgangp: see line 270 in https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/networks.py
@@ -250,7 +254,7 @@ epoch: {self.loop_description}
 
                
                 d_lc_real_loss = self.class_loss_fn(gen_lc_a, torch.argmax(lc_a_aug, 1))
-                d_loss = (d_fake_loss + d_real_loss + d_lc_real_loss) / 2
+                d_loss = (d_fake_loss + d_real_loss + d_lc_real_loss) 
             
             if not evaluation:
                 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -280,7 +284,8 @@ epoch: {self.loop_description}
                 _, g_patchGAN = self.discriminator(fake_img_aug)
                 # Use landcover model for lc_gen_fake?
                 lc_gen_fake = self.landcover_model(fake_img)
-                lc_gen_fake = torch.softmax(lc_gen_fake, dim=1)
+                # Not use softmax if use cross entropy
+                # lc_gen_fake = torch.softmax(lc_gen_fake, dim=1)
 
                 if all_lambdas["g_adv_lambda"][0] == 0:
                     g_adv_loss = torch.tensor(0., requires_grad=True).to(device)
@@ -334,25 +339,34 @@ epoch: {self.loop_description}
                         # new area
                         rgb_ab_local_area = rgb_ab[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h - config.local_area_margin:r_h+mask_size_h + config.local_area_margin]
                         # old area
-                        # rgb_a_local_area = rgb_a[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
+                        rgb_a_local_area = rgb_a[j,:,r_w-config.local_area_margin:r_w + mask_size_w + config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin]
                     
                         if all_lambdas["local_g_style_lambda"][0] != 0:
-                            local_g_style_loss += self.style_loss_fn(gen_local_area, rgb_ab_local_area)
-                        
+                            # use old or new area to compare with the style loss
+                            if args.local_style_new:
+                                local_g_style_loss += self.style_loss_fn(gen_local_area, rgb_ab_local_area)
+                            else:
+                                local_g_style_loss += self.style_loss_fn(gen_local_area, rgb_a_local_area)
+
                         if all_lambdas["local_g_pixel_lambda"][0] != 0:
                             local_g_pixel_loss += self.pixel_loss_fn(gen_local_area, rgb_ab_local_area)
 
                         if all_lambdas["local_g_feature_lambda"][0] != 0:
                             c, w, h = gen_local_area.shape
-                            gen_local_feature = self.relu3_3(gen_local_area.reshape(1, c, w, h))
-                            rgb_ab_local_feature = self.relu3_3(rgb_ab_local_area.reshape(1, c, w, h))  
-                            local_g_feature_loss += self.feature_loss_fn(gen_local_feature, rgb_ab_local_feature)
-
-
-                        # fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
-                        # rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
-                        fake_img_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
-                        rgb_a_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
+                            # use old or new area for feature loss
+                            if args.local_feature_new:
+                                gen_local_feature = self.relu3_3(gen_local_area.reshape(1, c, w, h))
+                                rgb_ab_local_feature = self.relu3_3(rgb_ab_local_area.reshape(1, c, w, h))  
+                                local_g_feature_loss += self.feature_loss_fn(gen_local_feature, rgb_ab_local_feature)
+                            else:
+                                gen_local_feature = self.relu3_3(gen_local_area.reshape(1, c, w, h))
+                                rgb_a_local_feature = self.relu3_3(rgb_a_local_area.reshape(1, c, w, h))  
+                                local_g_feature_loss += self.feature_loss_fn(gen_local_feature, rgb_a_local_feature)
+                                
+                        fake_img_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        rgb_a_unchanged_area[j,:,r_w-config.local_area_margin:r_w + mask_size_w+config.local_area_margin, r_h-config.local_area_margin:r_h+mask_size_h+config.local_area_margin] = torch.zeros(3, mask_size_w + (config.local_area_margin * 2), mask_size_h + (config.local_area_margin * 2))
+                        # fake_img_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
+                        # rgb_a_unchanged_area[j,:,r_w:r_w + mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
 
 
                 if local_g_style_loss == 0:
@@ -386,7 +400,7 @@ epoch: {self.loop_description}
                     + (g_gen_lc_loss * g_gen_lc_lambda)
                     + (g_pixel_loss * all_lambdas["g_pixel_lambda"][0])
                     + (
-                        (g_pixel_id_loss + g_feature_id_loss) * id_lambda
+                        (g_pixel_id_loss + pixel_feature_loss) * id_lambda
                     )
                     + (local_g_style_loss * all_lambdas["local_g_style_lambda"][0])
                     + (local_g_pixel_loss * all_lambdas["local_g_pixel_lambda"][0])
@@ -423,7 +437,7 @@ epoch: {self.loop_description}
                 scaler.step(self.gen_opt)
                 scaler.update()
 
-            total += 1
+            total_batches += 1
             for name in losses_names:
                 epoch_losses[name] += eval(name).item()
 
@@ -448,11 +462,11 @@ epoch: {self.loop_description}
         loss_dict = self.val_losses if evaluation else self.losses
 
         for name in losses_names:
-            loss_dict[name].append(epoch_losses[name] / total)
+            loss_dict[name].append(epoch_losses[name] / total_batches)
 
         if evaluation:
             for iou in possible_ious:
-                self.ious[iou].append(epoch_ious[iou] / total)
+                self.ious[iou].append(epoch_ious[iou] / total_batches)
             with open(self.iou_file, "w") as f:
                 json.dump(self.ious, f)
 
@@ -463,12 +477,12 @@ epoch: {self.loop_description}
         if not os.path.exists(self.models_dir):
             os.mkdir(self.models_dir)
 
-        torch.save(self.generator.state_dict(), f"{self.models_dir}/generator.pt")
-        torch.save(self.discriminator.state_dict(), f"{self.models_dir}/discriminator.pt")
+        torch.save(self.generator.state_dict(), os.path.join(self.models_dir, "generator.pt"))
+        torch.save(self.discriminator.state_dict(), os.path.join(self.models_dir, "discriminator.pt"))
 
     def load_models(self):
-        self.generator.load_state_dict(torch.load(f"{self.models_dir}/generator.pt"))
-        self.discriminator.load_state_dict(torch.load(f"{self.models_dir}/discriminator.pt"))
+        self.generator.load_state_dict(torch.load(os.path.join(self.models_dir, "generator.pt")))
+        self.discriminator.load_state_dict(torch.load(os.path.join(self.models_dir, "discriminator.pt")))
 
     def save_losses(self):
         with open(self.losses_file, "w") as f:
@@ -479,6 +493,7 @@ epoch: {self.loop_description}
 
     def train(self):
         eval_dir = args.eval_dir
+        # cannot change this number between runs
         num_save_examples = 2
         # save deterministic samples
         save_example(self.generator, self.discriminator, eval_dir, 0, self.val_loader, device, num_save_examples)
@@ -496,7 +511,7 @@ epoch: {self.loop_description}
                 self.use_dynamic_lambdas = True
 
             self.loop_description = f"{epoch} / {num_epochs + start_epoch - 1}"
-            self.epoch(False)
+            self.epoch(evaluation=False)
             save_example(self.generator, self.discriminator, eval_dir, epoch, self.val_loader, device, num_save_examples)
             self.epoch(evaluation=True)
             plot_losses(args.losses_dir, self.losses, self.val_losses)
