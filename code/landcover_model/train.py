@@ -54,7 +54,7 @@ class Train:
         self.val_loader = DataLoader(d_val, batch_size=args.val_batch_size, num_workers=args.num_workers)
        
         print(f"{len(os.listdir(os.path.join(data_dir,'train/rgb')))} files in train/rgb")
-        print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_classes')))} files in train/lc_classes")
+        print(f"{len(os.listdir(os.path.join(data_dir,'train/lc_sieve')))} files in train/lc_sieve")
 
         self.class_loss_fn = nn.CrossEntropyLoss()
 
