@@ -45,3 +45,5 @@ results4/
 training_log*
 
 graphs/
+
+losses_imgs/
