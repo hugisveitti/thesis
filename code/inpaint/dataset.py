@@ -31,7 +31,7 @@ class SatelliteDataset(Dataset):
 
     def open_classes(self, idx):
         fn = self.rgb_files[idx].split(".")[0]
-        with np.load(os.path.join(self.root_dir, "reduced_classes", fn + ".npz")) as classes:
+        with np.load(os.path.join(self.root_dir, "lc_sieve", fn + ".npz")) as classes:
             classes = classes["arr_0"]
             classes = toTensor(classes)
             classes = classes.type(config.tensor_type)
