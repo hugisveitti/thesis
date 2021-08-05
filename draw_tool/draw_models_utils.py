@@ -1,5 +1,19 @@
 import torch
+import ast
+import numpy as np
 num_classes = 9
+
+def lc_to_sieve(lc):
+    lc_sieve = np.zeros((256, 256, 3))
+    for i in range(lc.shape[0]):
+        for j in range(lc.shape[1]):
+            num = np.argmax(lc[i,j])
+            pix = lc_pixels[num]
+            l = ast.literal_eval(pix)
+            lc_sieve[i,j,:] = l[:3]
+
+    return lc_sieve
+
 
 if num_classes == 9:
     lc_pixels = {

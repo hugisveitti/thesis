@@ -5,12 +5,15 @@ import json
 import cgi
 import os
 from .run_models import handle_images
+from .draw_models_utils import lc_to_sieve
 
 curr_dir = "draw_tool"
 
 data_dir = "data/grid_dir/val/"
 rgb_files = os.listdir(os.path.join(data_dir,"rgb"))
 print("rgb files",len(rgb_files))
+
+
 
 class Serv(BaseHTTPRequestHandler):
 
@@ -31,12 +34,13 @@ class Serv(BaseHTTPRequestHandler):
                 idx = np.random.randint(len(rgb_files))
                 fn = rgb_files[idx]
 
-            print("fn",fn)
+            print("fn",fn, idx)
             with Image.open(os.path.join(data_dir, "rgb",fn)) as f:
                 rgb = np.array(f)[:,:,:3]
 
-            with Image.open(os.path.join(data_dir, "lc", fn)) as f:
-                lc = np.array(f)[:,:,:3]
+            with np.load(os.path.join(data_dir, "lc_sieve", fn.split(".")[0] + ".npz")) as f:
+                lc = f["arr_0"]
+                lc = lc_to_sieve(lc)
             
             d = {
                 "rgb":rgb.flatten().tolist(),
