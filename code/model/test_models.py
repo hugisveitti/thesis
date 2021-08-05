@@ -13,16 +13,16 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import argparse
 
-def save_two_samples(generator, discriminator, folder, loader, device):
+def myreshape(ma):
+    return ma.reshape(1,ma.shape[0], ma.shape[1], ma.shape[2])
+
+def save_two_samples(generator, discriminator, folder, loader, ds, device):
     # In pix2pix they talk about using the dropout as the random noise
     generator.eval()
     for m in generator.modules():
         if m.__class__.__name__.startswith('Dropout'):
             m.train()
-    discriminator.eval()
-    for m in discriminator.modules():
-        if m.__class__.__name__.startswith('Dropout'):
-            m.train()
+
 
     if not os.path.exists(folder):
         os.mkdir(folder)
@@ -35,6 +35,18 @@ def save_two_samples(generator, discriminator, folder, loader, device):
     loop = tqdm(loader)
     for rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loop:
         example += 1
+        
+        # Use specific index
+        # idx = 2222
+        # example = idx
+        # rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab, masked_areas = ds.__getitem__(idx)
+        # rgb_a = myreshape(rgb_a)
+        # lc_a = myreshape(lc_a)
+        # lc_ab = lc_a.clone()
+        # binary_mask = binary_mask.reshape(1,1,256,256)
+        # binary_mask = torch.zeros_like(binary_mask)
+
+
         rgb_a, rgb_b, lc_a, lc_b, binary_mask, lc_ab, masked_areas = rgb_a.to(device), rgb_b.to(device), lc_a.to(device), lc_b.to(device), binary_mask.to(device), lc_ab.to(device), masked_areas
 
         with torch.cuda.amp.autocast():
@@ -112,7 +124,7 @@ def save_two_samples(generator, discriminator, folder, loader, device):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_dir", type=str, default="../../data/grid_dir/val")
-parser.add_argument("--num_samples", type=int, default=15)
+parser.add_argument("--num_samples", type=int, default=1)
 parser.add_argument("--run_dir", type=str, default="results/run31")
 parser.add_argument("--device", type=str, default="cpu")
 
@@ -125,7 +137,7 @@ loader = DataLoader(ds, 1)
 
 
 results_dir = args.run_dir
-for run_n in range(30, 33):
+for run_n in range(35,36):
     results_dir = f"results/run{run_n}"
     print(f"results dir: {results_dir}")
     if os.path.exists(results_dir):
@@ -135,6 +147,6 @@ for run_n in range(30, 33):
             g.load_state_dict(torch.load(f"{results_dir}/models/generator.pt"))
             d.load_state_dict(torch.load(f"{results_dir}/models/discriminator.pt"))
 
-            save_two_samples(g, d, f"{results_dir}/random_examples_two_images/", loader, device)
+            save_two_samples(g, d, f"{results_dir}/random_examples_two_images/", loader, ds, device)
         except Exception as exception:
             print("state dict probs dont fit", exception)

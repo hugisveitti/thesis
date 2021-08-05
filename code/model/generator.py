@@ -37,7 +37,7 @@ class Generator(nn.Module):
     def __init__(self, in_channels = 3 + config.num_classes + 1):
         super(Generator, self).__init__()
         self.first_layer = nn.Sequential(
-            nn.Conv2d(in_channels, 64, kernel_size=in_channels, stride=1, padding=in_channels//2),
+            nn.Conv2d(in_channels, 64, kernel_size=3, stride=1, padding=1),
             nn.ELU()
         )
         bottleneck_features = 512
@@ -54,8 +54,8 @@ class Generator(nn.Module):
         self.up4 = Block(512 * 2, 256, down=False)
         self.up3 = Block(256 * 2, 128, down=False)
         self.up2 = Block(128 * 2, 64, down=False)
-        
         self.up1 = Block(64 * 2, 64, stride=1)
+
         self.final = nn.Sequential(
             Block(64, 64, stride=1),
             nn.Conv2d(64, 3, kernel_size = 3, stride=1, padding=1),
@@ -77,6 +77,21 @@ class Generator(nn.Module):
         u2 = self.up3(torch.cat([d3, u3], dim=1))
         u1 = self.up2(torch.cat([d2, u2], dim=1))
         x = self.up1(torch.cat([d1, u1], dim=1))
+
+        # print("d1",d1.shape)
+        # print("d2",d2.shape)
+        # print("d3",d3.shape)
+        # print("d4",d4.shape)
+        # print("d5", d5.shape)
+        
+        # print("b",b.shape)
+        # print("u5", u5.shape)
+        # print("u4", u4.shape)
+        # print("u3", u3.shape)
+        
+        # print("u2", u2.shape)
+        # print("u1",u1.shape)
+        # print("x", x.shape)
         return self.final(x)
 
 

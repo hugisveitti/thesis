@@ -23,7 +23,8 @@ LEARNING_RATE = 0.0002
 scaler = torch.cuda.amp.GradScaler()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--load_models", type=bool, default=False)
+parser.add_argument("--load_models", dest="load_models", action="store_true")
+parser.set_defaults(load_models=False)
 parser.add_argument("--data_dir", type=str, default="../../data/grid_dir")
 parser.add_argument("--eval_dir", type=str, default="eval")
 parser.add_argument("--losses_dir", type=str, default="losses")
@@ -51,12 +52,12 @@ parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 parser.add_argument("--local_style_new", dest="local_style_new", action="store_true")
 parser.add_argument("--local_style_old", dest="local_style_new", action="store_false")
 parser.set_defaults(local_style_new=False)
-parser.add_argument("--local_feature_new", dest="local_style_new", action="store_true")
-parser.add_argument("--local_feature_old", dest="local_style_new", action="store_false")
+parser.add_argument("--local_feature_new", dest="local_feature_new", action="store_true")
+parser.add_argument("--local_feature_old", dest="local_feature_new", action="store_false")
 parser.set_defaults(local_feature_new=False)
 
 args = parser.parse_args()
-print(args)
+
 g_feature_lambda = args.g_feature_lambda
 g_adv_lambda = args.g_adv_lambda
 g_pixel_lambda = args.g_pixel_lambda
@@ -68,7 +69,7 @@ g_gen_lc_lambda = args.g_gen_lc_lambda
 
 min_lambda_value = 0.05
 
-losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_feature_loss","g_pixel_id_loss", "g_gen_lc_loss", "local_g_style_loss", "local_g_pixel_loss", "local_g_feature_loss"]
+losses_names =  ["d_fake_loss","d_real_loss","d_lc_real_loss", "d_loss", "g_loss","g_adv_loss","g_pixel_loss", "g_feature_loss","g_pixel_id_loss", "g_feature_id_loss", "g_gen_lc_loss", "local_g_style_loss", "local_g_pixel_loss", "local_g_feature_loss"]
 possible_ious = ["iou_gen_lc_fake_a_vs_gen_lc_a", "iou_gen_lc_fake_a_vs_lc_a", "iou_gen_lc_a_vs_lc_a"]
 
 
@@ -400,7 +401,7 @@ epoch: {self.loop_description}
                     + (g_gen_lc_loss * g_gen_lc_lambda)
                     + (g_pixel_loss * all_lambdas["g_pixel_lambda"][0])
                     + (
-                        (g_pixel_id_loss + pixel_feature_loss) * id_lambda
+                        (g_pixel_id_loss + g_feature_id_loss) * id_lambda
                     )
                     + (local_g_style_loss * all_lambdas["local_g_style_lambda"][0])
                     + (local_g_pixel_loss * all_lambdas["local_g_pixel_lambda"][0])
