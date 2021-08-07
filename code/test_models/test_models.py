@@ -69,9 +69,9 @@ class MyDataset(Dataset):
                     if squared_mask:
                         lc_ab[:,i,j] = lc_b[:,i,j]
                         binary_mask[0, i, j] = 1
+                        rgb_a_masked[:, i, j] = torch.zeros(3)
                         if not torch.equal(lc_a[:,i,j], lc_b[:,i,j]):
                             rgb_ab[:, i, j] = rgb_b[:, i, j]
-                            rgb_a_masked[:, i, j] = torch.zeros(3)
                     elif not torch.equal(lc_a[:,i,j], lc_b[:,i,j]):
                         lc_ab[:,i,j] = lc_b[:,i,j]
                         binary_mask[0, i, j] = 1
@@ -198,6 +198,7 @@ def run_test():
                 plt.imsave(os.path.join(save_dir, f"{example_n}_fake_img1.png"), fake_img1)
                 plt.imsave(os.path.join(save_dir, f"{example_n}_fake_img2.png"), fake_img2)
                 plt.imsave(os.path.join(save_dir, f"{example_n}_inpaint_img.png"), inpaint_img)
+                plt.imsave(os.path.join(save_dir, f"{example_n}_rgb_a_masked.png"), rgb_a_masked)
                 
                 
                 fig, ax = plt.subplots(1,3, figsize=(12,4))

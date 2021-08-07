@@ -22,7 +22,7 @@ def save_two_samples(generator, discriminator, folder, loader, ds, device):
     for m in generator.modules():
         if m.__class__.__name__.startswith('Dropout'):
             m.train()
-
+    discriminator.eval()
 
     if not os.path.exists(folder):
         os.mkdir(folder)

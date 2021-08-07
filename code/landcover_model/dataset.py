@@ -10,11 +10,11 @@ import torchvision.transforms as T
 
 flip_horizontal = T.RandomHorizontalFlip(p=1)
 flip_vertical = T.RandomVerticalFlip(p=1)
-rand_rotation_90 = T.RandomRotation(90) # -90 or 90
-rand_rotation_180 = T.RandomRotation(180) # -180 or 180
+rand_rotation_90 = T.RandomRotation((90, 90)) # -90 or 90
+rand_rotation_180 = T.RandomRotation((180, 180)) # -180 or 180
 
 
-transf_types = [flip_horizontal]#, flip_vertical, rand_rotation_90, rand_rotation_180]
+transf_types = [flip_horizontal, flip_vertical, rand_rotation_90, rand_rotation_180]
 
 toTensor = T.ToTensor()
 

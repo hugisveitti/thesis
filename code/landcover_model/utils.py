@@ -93,7 +93,7 @@ def calc_all_IoUs(lc_a, lc_b):
 
 def test():
     device = "cpu" #"cuda" if torch.cuda.is_available() else "cpu"
-    results_dir = "results/landcover_run3"
+    results_dir = "results/landcover_run7"
     model_dir = f"{results_dir}/models/lc_model.pt"
     lc_model = LandcoverModel().to(device)
     lc_model.load_state_dict(torch.load(model_dir))

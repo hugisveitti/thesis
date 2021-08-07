@@ -9,8 +9,8 @@ import config
 
 flip_horizontal = T.RandomHorizontalFlip(p=1)
 flip_vertical = T.RandomVerticalFlip(p=1)
-rand_rotation_90 = T.RandomRotation(90) # -90 or 90
-rand_rotation_180 = T.RandomRotation(180) # -180 or 180
+rand_rotation_90 = T.RandomRotation((90, 90)) # -90 or 90
+rand_rotation_180 = T.RandomRotation((180, 180)) # -180 or 180
 
 transf_types = [flip_horizontal, flip_vertical, rand_rotation_90, rand_rotation_180]
 
@@ -74,32 +74,7 @@ class SatelliteDataset(Dataset):
 
 
         return [r_w, r_h, mask_size_w, mask_size_h]
-        # Just for illustration
-        # put boxes around changed area.
-        for i in range(r_w, r_w + mask_size_w):
-            rgb_b[:,i,r_h] = torch.tensor([1,1,1])
-            rgb_b[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
-            rgb_ab[:,i,r_h] = torch.tensor([1,1,1])
-            rgb_ab[:,i,r_h + mask_size_h] = torch.tensor([1,1,1])
-            lc_ab[:,i,r_h] = torch.zeros(config.num_classes)
-            lc_ab[0,i,r_h] = 1
-            lc_ab[:,i,r_h+mask_size_h] = torch.zeros(config.num_classes)
-            lc_ab[0,i,r_h + mask_size_h] = 1
         
-        for j in range(r_h, r_h + mask_size_h):
-            rgb_b[:, r_w, j] = torch.tensor([1,1,1])
-            rgb_b[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
-            rgb_ab[:, r_w, j] = torch.tensor([1,1,1])
-            rgb_ab[:, r_w + mask_size_w, j] = torch.tensor([1,1,1])
-            lc_ab[:,r_w,j] = torch.zeros(config.num_classes)
-            lc_ab[0,r_w,j] = 1
-            lc_ab[:,r_w+mask_size_w, j] = torch.zeros(config.num_classes)
-            lc_ab[0,r_w + mask_size_w,j] = 1
-
-        return [r_w, r_h, mask_size_w, mask_size_h]
-
-
-
     def __len__(self):
         return self.len 
 
@@ -111,7 +86,6 @@ class SatelliteDataset(Dataset):
 
         rgb_b = self.open_img(idx_b)
         lc_b = self.open_classes(idx_b)
-
 
         for transf in transf_types:
             if np.random.random() < 0.25:
@@ -139,9 +113,9 @@ def test():
     import matplotlib.pyplot as plt
 
     ds = SatelliteDataset("../../data/grid_dir/val")
-    loader = DataLoader(ds, 4)
+    loader = DataLoader(ds, 1, True)
     i = 0
-    num_examples = 3
+    num_examples = 5
     
     for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
         rgb_a = unprocess(rgb_a)
@@ -158,13 +132,13 @@ def test():
         fig.tight_layout()
         
         ax[0,0].imshow(rgb_a)
-        ax[0,0].set_title("rgb_a (input)")
+        ax[0,0].set_title("rgb_a")
         
         ax[0,1].imshow(rgb_ab)
         ax[0,1].set_title("rgb_ab")
         
         ax[0,2].imshow(lc_ab)
-        ax[0,2].set_title("lc_ab (input)")
+        ax[0,2].set_title("lc_ab")
 
         ax[1,0].imshow(lc_a)
         ax[1,0].set_title("lc_a")
@@ -172,8 +146,8 @@ def test():
         ax[1,1].imshow(lc_b)
         ax[1,1].set_title("lc_b")
 
-        ax[1,2].imshow(binary_mask, cmap="gray")
-        ax[1,2].set_title("binary mask (input)")
+        ax[1,2].imshow(binary_mask)
+        ax[1,2].set_title("binary mask")
 
         folder = "testsetup"
         if not os.path.exists(folder):
@@ -199,5 +173,5 @@ def test_utils():
     save_example(g, discriminator, "testsetup", 0, l, device)
 
 if __name__ == "__main__":
-    #test()
-    test_utils()
+    test()
+    #test_utils()

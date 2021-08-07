@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import config
 
 
 class Block(nn.Module):
@@ -55,7 +54,7 @@ class LandcoverModel(nn.Module):
 
         self.final = nn.Sequential(
             Block(64, 64, kernel_size = 3, stride=1),
-            nn.Conv2d(64, config.num_classes, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 9, kernel_size=3, stride=1, padding=1),
         )
         
 

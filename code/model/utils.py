@@ -14,9 +14,7 @@ def save_example(generator, discriminator, folder, epoch, loader, device, num_ex
         if m.__class__.__name__.startswith('Dropout'):
             m.train()
     discriminator.eval()
-    for m in discriminator.modules():
-        if m.__class__.__name__.startswith('Dropout'):
-            m.train()
+
 
     if not os.path.exists(folder):
         os.mkdir(folder)
@@ -99,7 +97,7 @@ def IoU(lc_a, lc_b, cla):
     if union == 0:
         return None
     return len(((lc_a == cla) | (lc_b == cla))[(lc_a == cla) & (lc_b == cla)]) / union
-num_classes = 14
+
 def calc_single_IoUs(lc_a, lc_b):
     """
     Calculates the mean IoU,
@@ -107,7 +105,7 @@ def calc_single_IoUs(lc_a, lc_b):
     """
     c_ratio = []
     ious = []
-    for c in range(num_classes):
+    for c in range(config.num_classes):
         iou = IoU(lc_a, lc_b, c)
         n = lc_a.shape[0] * lc_a.shape[1]
         if iou != None:
