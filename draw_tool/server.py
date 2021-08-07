@@ -9,32 +9,33 @@ from .draw_models_utils import lc_to_sieve
 
 curr_dir = "draw_tool"
 
-data_dir = "data/grid_dir/val/"
-rgb_files = os.listdir(os.path.join(data_dir,"rgb"))
+data_dir = "data/grid_dir/test/"
+rgb_files = os.listdir(os.path.join(data_dir, "rgb"))
 print("rgb files",len(rgb_files))
-
+global unchanged_lc
+unchanged_lc = None
 
 
 class Serv(BaseHTTPRequestHandler):
 
     def do_GET(self):
         
-
         if self.path == "/":
             file_to_open = open(os.path.join(curr_dir,"index.html")).read()
             self.send_response(200)
             self.end_headers()
             self.wfile.write(bytes(file_to_open, 'utf-8'))
-
+        
         elif self.path.split("/")[1] == "images":
             paths = self.path.split("/")
+            print("paths 2",paths[2])
             if len(paths) > 2 and paths[2] != "" and paths[2] in rgb_files:
                 fn = paths[2]
             else:
                 idx = np.random.randint(len(rgb_files))
                 fn = rgb_files[idx]
-
-            print("fn",fn, idx)
+                print("Using random image")
+            print("file", fn)
             with Image.open(os.path.join(data_dir, "rgb",fn)) as f:
                 rgb = np.array(f)[:,:,:3]
 
@@ -46,6 +47,8 @@ class Serv(BaseHTTPRequestHandler):
                 "rgb":rgb.flatten().tolist(),
                 "lc":lc.flatten().tolist()
             }
+            global unchanged_lc
+            unchanged_lc = lc
             
             self.send_response(200)
             self.end_headers()
@@ -66,7 +69,9 @@ class Serv(BaseHTTPRequestHandler):
         self.end_headers()
 
         model_name = self.path.split("/")[2]
-        fake_img = handle_images(message, model_name)
+        global unchanged_lc
+        
+        fake_img = handle_images(message, model_name, unchanged_lc)
         self.wfile.write(bytes(json.dumps((fake_img.flatten()).tolist()),'utf-8'))
 
 def run_server():

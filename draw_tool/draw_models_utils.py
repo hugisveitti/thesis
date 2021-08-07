@@ -74,3 +74,20 @@ else:
     }
 
 tensor_type = torch.FloatTensor
+
+
+def create_img_from_classes(img_classes):
+    img = np.zeros((img_classes.shape[0], img_classes.shape[1], 4), dtype=np.uint8)
+    
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if np.equal(img_classes[i,j], np.zeros(num_classes)).all():
+                img[i,j, :] = [0, 0, 0, 255]
+            else:
+                img[i,j] = ast.literal_eval(lc_pixels[np.argmax(img_classes[i,j])])
+    return img
+
+def unprocess(ma):
+    ma = np.array(ma, dtype=np.float32)[0]
+    ma = np.moveaxis(ma, 0, -1)
+    return ma

@@ -72,14 +72,16 @@
       binaryImg,
       binaryPixels,
       modelRadio,
-      imgInput;
+      imgInput,
+      saveNameInput,
+      saveAllCheckbox;
     let currentR = 255;
     let currentG = 255;
     let currentB = 255;
     let pencilWidth = 10;
     let binaryMask = [];
     // mixlc or inpaint
-    let modelType = "mixlc";
+    let modelType = "model1";
 
     const getImages = () => {
       let imgName = "";
@@ -230,16 +232,27 @@
       /* model selector */
       modelRadio = createRadio();
       modelRadio.position(550, 300);
-      modelRadio.option("mixlc1");
-      modelRadio.option("mixlc2");
+      modelRadio.option("model1");
+      modelRadio.option("model2");
       modelRadio.option("inpaint");
-      modelRadio.selected("mixlc1");
+      modelRadio.selected("model1");
       modelRadio.style("width", "70px");
 
       /* img input to get specific image */
       imgInput = createInput("");
       imgInput.position(550, 450);
       imgInput.size(100);
+      imgInput.attribute("placeholder", "filename");
+
+      /* */
+      saveNameInput = createInput("");
+      saveNameInput.position(663, 375);
+      saveNameInput.size(80);
+      saveNameInput.attribute("placeholder", "save name");
+
+      /* when checked generate from all three models and save */
+      saveAllCheckbox = createCheckbox("Save to disk", false);
+      saveAllCheckbox.position(550, 375);
     }
 
     const drawColorPicker = () => {
@@ -315,7 +328,13 @@
     }
 
     const sendBtn = document.getElementById("send-btn");
+
     sendBtn.addEventListener("click", (e) => {
+      let saveName = "";
+      if (saveNameInput) {
+        saveName = saveNameInput.value();
+      }
+
       e.preventDefault();
       fetch("/send/" + modelType, {
         method: "POST",
@@ -324,6 +343,8 @@
           rgb: rgbPixels,
           lc: lcPixels,
           binaryMask: binaryMask,
+          saveImages: saveAllCheckbox.checked(),
+          saveName,
         }),
       })
         .then((res) => res.json())
