@@ -79,18 +79,6 @@ class Discriminator(nn.Module):
         u2 = self.up3(torch.cat([d3, u3], dim=1))
         u1 = self.up2(torch.cat([d2, u2], dim=1))
         x = self.up1(torch.cat([d1, u1], dim=1))
-        print("d1",d1.shape)
-        print("d2",d2.shape)
-        print("d3",d3.shape)
-        print("d4",d4.shape)
-        print("d5", d5.shape)
-        print("b",b.shape)
-        print("u5", u2.shape)
-        print("u4", u2.shape)
-        print("u3", u2.shape)
-        print("u2", u2.shape)
-        print("u1",u1.shape)
-        print("x", x.shape)
         gen_lc = self.final(x)
         return gen_lc, patch_gan
 
@@ -99,6 +87,12 @@ def test():
     d = Discriminator()
     rgb = torch.randn((1, 3, 256, 256))
     gen_lc, patch_gan = d(rgb)
+
+    # local discriminator
+    local_rgb = torch.randn((1, 3, 64, 64))
+    local_gen_lc, local_patch_gan = d(local_rgb)
+    print("local_patchgan shape", local_patch_gan.shape)
+    print("local_gen_lc shape", local_gen_lc.shape)
 
     print("gen lc shape", gen_lc.shape)
     print("patch_GAN shape", patch_gan.shape)
