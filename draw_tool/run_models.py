@@ -36,7 +36,7 @@ def process(ma):
     return ma
 
 
-generator_file1 = "code/model/results/run35/models/generator.pt"
+generator_file1 = "code/model/models/generator1.pt"
 generator1 = Generator().to(device)
 generator1.load_state_dict(torch.load(generator_file1))
 generator1.eval()
@@ -45,7 +45,7 @@ for m in generator1.modules():
         m.train()
 
 
-generator_file2 = "code/model/results/run36/models/generator.pt"
+generator_file2 = "code/model/models/generator2.pt"
 generator2 = Generator().to(device)
 generator2.load_state_dict(torch.load(generator_file2))
 generator2.eval()
@@ -54,7 +54,7 @@ for m in generator2.modules():
         m.train()
 
 
-inpaint_generator_file = "code/inpaint/results/inpaint_run6/models/generator.pt"
+inpaint_generator_file = "code/inpaint/models/generator.pt"
 inpaint_generator = InpaintGenerator().to(device)
 inpaint_generator.load_state_dict(torch.load(inpaint_generator_file))
 inpaint_generator.eval()
@@ -96,7 +96,6 @@ def handle_images(d, model_name, unchanged_lc):
         binary_mask = np.array(binary_mask)
         binary_mask = binary_mask.reshape((256, 256))
 
-
         rgb = np.array(rgb)
         rgb = rgb.reshape((256,256,3))
 
@@ -119,8 +118,6 @@ def handle_images(d, model_name, unchanged_lc):
             plt.imsave(os.path.join(curr_save_dir, f"rgb_masked.png"), np.array(rgb_masked, dtype=np.uint8))
             plt.imsave(os.path.join(curr_save_dir, f"unchanged_lc.png"), np.array(unchanged_lc, dtype=np.uint8))
             
-
-
         rgb = rgb / 255
         rgb_masked = rgb_masked / 255
         lc_classes = convert_to_classes(lc)

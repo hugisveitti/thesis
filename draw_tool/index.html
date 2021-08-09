@@ -282,11 +282,17 @@
       image(fakeImg, 0, 256);
       image(binaryImg, 256, 256);
       if (mouseIsPressed) {
-        if (mouseX > 0 && mouseX < 256 + 256 && mouseY < 256 && mouseY > 0) {
-          const pixel = (mouseY * 256 + (mouseX % 256)) * 3;
+        if (
+          mouseX > 0 &&
+          mouseX < 256 + 256 &&
+          mouseY < 256 + 256 &&
+          mouseY > 0
+        ) {
           for (let i = -pencilWidth / 2; i < pencilWidth / 2; i++) {
             for (let j = -pencilWidth / 2; j < pencilWidth / 2; j++) {
-              const p_off = ((mouseY + j) * 256 + (mouseX + i - 256)) * 3;
+              const myY = mouseY % 256;
+              const myX = mouseX % 256;
+              const p_off = (((myY % 256) + j) * 256 + (myX + i - 256)) * 3;
               if (p_off > 0 && p_off < lcPixels.length) {
                 lcPixels[p_off] = currentR;
                 lcPixels[p_off + 1] = currentG;
@@ -296,7 +302,7 @@
                 binaryPixels[p_off + 1] = 255;
                 binaryPixels[p_off + 1] = 255;
 
-                const bin_p_off = (mouseY + j) * 256 + (mouseX + i - 256);
+                const bin_p_off = (myY + j) * 256 + (myX + i - 256);
                 binaryMask[bin_p_off] = 1;
               }
             }
