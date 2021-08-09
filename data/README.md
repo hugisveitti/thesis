@@ -9,11 +9,30 @@ loading_example.ipynb -> walkthrough how to align the data, this should be appli
 
 ## Creating the data
 
+You need to have some python packages such as numpy, matplotlib, PIL etc.
+
+To use and install rasterio, I recommend using Miniconda3.
+
+```
+conda install -c conda-forge rasterio
+```
+
+And then
+
+```
+python create_data.py
+```
+
+## Info about creating the data
+
 Using the data I have on the 5.5.2021 split the satellite images into train, val and test. The images are 13 tiles, 11 are used for training, one for validation and one for testing.
 
-From each tile I created selected random locations, from that selected 256 pixels to the right and 256 pixels down to create a 256x256 image. From the rgb image I use the scl data to see if the rgb is valid, valid means there is almost no snow, less then 40% water and some more. I will go into more detail when these parameters are more clear.
+For each tile we create a 256x256 window, if a sample is valid in that window we save it. Then we slide the window.
+A valid window means there is almost no snow, less then 40% water and some more.
 
-I create 1000 valid rgb images from each tile. I am not sure how many images to create from an image is sufficient, but doing some simple augmentation like rotating them, horizontally and/or vertically is a good.
+- Test: 3153
+- Val: 2881
+- Train: 12324
 
 From the rgb images we find the correct location in the danmark_landcover.tif file (this code is from Stefan). The landcover has 14 possible classes for each pixel.
 
@@ -41,12 +60,19 @@ The landcover pixels are classifications are found in the following table.
 
 From this table I created a mapping from a pixel to a one hot vector.
 
-The landcover classes are all saved together in a classes.npz file. The 11000 RGB image used for training are 1.4 GB.
-
 ### Time
 
 I think creating the images takes about two hours on my laptop.
 
 ## More ideas
 
-I did try and normalize the images and save them as tensors to be loaded straight into memory without preprocessing to see if it would be faster but it didn't seem to matter.
+We also process the classes by reducing them from 14 to 9 and the applying a sieve filter.
+
+The order in which to run the notebooks:
+
+1. slide_window, creates rgb, scl, and lc.
+2. set_classes, creates lc_classes.
+3. reduce_classes, creates reduces_classes folder.
+4. sieve_landcover, which sieves the reduced landcover.
+
+All of these are combined into create_data.py
