@@ -37,6 +37,7 @@ def process(ma):
 
 
 generator_file1 = "code/model/models/generator1.pt"
+generator_file1 = "code/model/results/run38/models/generator.pt"
 generator1 = Generator().to(device)
 generator1.load_state_dict(torch.load(generator_file1))
 generator1.eval()
@@ -46,6 +47,8 @@ for m in generator1.modules():
 
 
 generator_file2 = "code/model/models/generator2.pt"
+generator_file2 = "code/model/results/run40/models/generator.pt"
+
 generator2 = Generator().to(device)
 generator2.load_state_dict(torch.load(generator_file2))
 generator2.eval()

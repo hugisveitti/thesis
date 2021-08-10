@@ -39,13 +39,13 @@ parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
 parser.add_argument("--g_feature_lambda", type=float, default=0.)
-parser.add_argument("--g_adv_lambda", type=float, default=0.3)
-parser.add_argument("--g_pixel_lambda", type=float, default=0.5)
+parser.add_argument("--g_adv_lambda", type=float, default=1)
+parser.add_argument("--g_pixel_lambda", type=float, default=1)
 parser.add_argument("--id_lambda", type=float, default=0.15)
-parser.add_argument("--local_g_style_lambda", type=float, default=0.25)
-parser.add_argument("--local_g_feature_lambda", type=float, default=0.25)
+parser.add_argument("--local_g_style_lambda", type=float, default=1)
+parser.add_argument("--local_g_feature_lambda", type=float, default=1)
 parser.add_argument("--local_g_pixel_lambda", type=float, default=0.)
-parser.add_argument("--g_gen_lc_lambda", type=float, default=0.3)
+parser.add_argument("--g_gen_lc_lambda", type=float, default=1)
 parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 
 # Should the changed areas have the style or feature from the new area or the old area
@@ -77,7 +77,6 @@ dynamic_lambdas_names = ["g_feature_loss_lambda", "g_adv_lambda", "g_pixel_lambd
 
 # to dynamically change loss lambdas,
 # Not include id or lc_gen_lambda
-# Not lc_gen_lambda, because I am not sure if crossEntropyLoss will be zero...
 all_lambdas = {
     "g_feature_loss_lambda":[g_feature_lambda, "g_feature_loss"], 
     "g_adv_lambda": [g_adv_lambda, "g_adv_loss"], 

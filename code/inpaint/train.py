@@ -39,19 +39,20 @@ parser.add_argument("--landcover_model_file", type=str, default="../landcover_mo
 # activate dynamic lambdas after certain epoch, if -1 then never
 parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
-parser.add_argument("--g_style_lambda", type=float, default=0.)
-parser.add_argument("--g_adv_lambda", type=float, default=0.3)
-parser.add_argument("--g_pixel_lambda", type=float, default=0.5)
+parser.add_argument("--g_feature_lambda", type=float, default=0.)
+parser.add_argument("--g_adv_lambda", type=float, default=1.)
+parser.add_argument("--g_pixel_lambda", type=float, default=1.)
 parser.add_argument("--id_lambda", type=float, default=0.15)
-parser.add_argument("--local_g_style_lambda", type=float, default=0.25)
-parser.add_argument("--local_g_feature_lambda", type=float, default=0.25)
-parser.add_argument("--local_g_pixel_lambda", type=float, default=0.5)
-parser.add_argument("--g_gen_lc_lambda", type=float, default=0.3)
+parser.add_argument("--local_g_style_lambda", type=float, default=1.)
+parser.add_argument("--local_g_feature_lambda", type=float, default=1.0)
+parser.add_argument("--local_g_pixel_lambda", type=float, default=50.0)
+parser.add_argument("--g_gen_lc_lambda", type=float, default=1.0)
+
 parser.add_argument("--smooth_l1_beta", type=float, default=0.1)
 
 args = parser.parse_args()
 
-g_style_lambda = args.g_style_lambda
+g_feature_lambda = args.g_feature_lambda
 g_adv_lambda = args.g_adv_lambda
 g_pixel_lambda = args.g_pixel_lambda
 id_lambda = args.id_lambda
@@ -68,9 +69,8 @@ lambdas_names = ["g_feature_loss_lambda", "g_adv_lambda", "g_pixel_lambda", "loc
 
 # to dynamically change loss lambdas,
 # Not include id or lc_gen_lambda
-# Not lc_gen_lambda, because I am not sure if crossEntropyLoss will be zero...
 all_lambdas = {
-    "g_feature_loss_lambda":[g_style_lambda, "g_feature_loss"], 
+    "g_feature_loss_lambda":[g_feature_lambda, "g_feature_loss"], 
     "g_adv_lambda": [g_adv_lambda, "g_adv_loss"], 
     "g_pixel_lambda":[g_pixel_lambda, "g_pixel_loss"], 
     "local_g_style_lambda":[local_g_style_lambda, "local_g_style_loss"], 
@@ -152,7 +152,7 @@ class Train:
 
         log_string = f"""
 ======= LAMBDAS =======
-g_style_lambda = {g_style_lambda}
+g_feature_lambda = {g_feature_lambda}
 g_adv_lambda = {g_adv_lambda}
 g_pixel_lambda = {g_pixel_lambda}
 id_lambda = {id_lambda}
@@ -261,7 +261,7 @@ g_gen_lc_lambda = {g_gen_lc_lambda}
                 # btw does this work as I expect?
                 # https://discuss.pytorch.org/t/optimizing-based-on-another-models-output/6935
                 # Because fake_img, from self.generator is part of the computational graph of g_adv_loss, this does work in training the generator.
-                if all_lambdas["local_g_style_lambda"][0] == 0:
+                if g_gen_lc_lambda == 0:
                     g_gen_lc_loss = torch.tensor(0., requires_grad=True).to(device)
                 else:
                     # use accuracy?

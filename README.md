@@ -10,4 +10,4 @@ To run the drawing tool run
 python main.py
 ```
 
-but the appropriate models will have to be downloaded and stored in the correct folder.
+but the appropriate models will have to be downloaded and stored in the correct folders.
