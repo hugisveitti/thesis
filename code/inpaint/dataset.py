@@ -110,6 +110,10 @@ def test():
 
         plt.savefig(folder + f"/input_example_{i}.png")
 
+        plt.imsave(os.path.join(folder, f"{i}_rgb.png"), rgb)
+        plt.imsave(os.path.join(folder, f"{i}_lc.png"), lc)
+        plt.imsave(os.path.join(folder, f"{i}_rgb_masked.png"), rgb_masked)
+
         i += 1
         if i == num_examples:
             break

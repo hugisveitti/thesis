@@ -13,6 +13,12 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import argparse
 
+mask_size_ws = [53, 50, 63, 45, 62, 63, 33, 43]
+mask_size_hs = [52, 44, 47, 56, 49, 60, 44, 58]
+
+r_ws = [20, 30, 100, 100, 190, 148, 70, 190]
+r_hs = [20, 190, 20, 100, 45, 50, 160, 130]
+
 def save_two_samples(generator, discriminator, folder, loader, ds, device):
     # In pix2pix they talk about using the dropout as the random noise
     generator.eval()
@@ -35,19 +41,18 @@ def save_two_samples(generator, discriminator, folder, loader, ds, device):
         rgb_a, lc_a, rgb_a_masked, masked_areas = rgb_a.to(device), lc_a.to(device), rgb_a_masked.to(device), masked_areas
 
         idx_b = 1000 # np.random.randint(ds.__len__())
-        print("idx_b", idx_b)
         rgb_b, lc_b, rgb_b_masked, masked_areas_b = ds.__getitem__(idx_b)
         rgb_b, lc_b, rgb_b_masked, masked_areas_b = rgb_b.to(device), lc_b.to(device), rgb_b_masked.to(device), masked_areas_b
-        #rgb_a_masked = rgb_b_masked.reshape((1, 3, 256, 256))
+        # rgb_a_masked = rgb_b_masked.reshape((1, 3, 256, 256))
         # lc_a = lc_b.reshape((1, 9, 256, 256))
         rgb_a_masked = rgb_a.clone()
         lc_ab = lc_a.clone()
         for i in range(len(masked_areas)):
 
-            r_w = masked_areas[i][0]
-            r_h = masked_areas[i][1]
-            mask_size_w = masked_areas[i][2]
-            mask_size_h = masked_areas[i][3]
+            r_w = r_ws[i]
+            r_h = r_hs[i]
+            mask_size_w = mask_size_ws[i]
+            mask_size_h = mask_size_hs[i]
             
             lc_ab[0,:,r_w:r_w+mask_size_w, r_h:r_h+mask_size_h] = lc_b[:,r_w:r_w+mask_size_w, r_h:r_h+mask_size_h]
             rgb_a_masked[0,:,r_w:r_w+mask_size_w, r_h:r_h+mask_size_h] = torch.zeros(3, mask_size_w, mask_size_h)
@@ -140,7 +145,7 @@ loader = DataLoader(ds, 1)
 
 
 results_dir = args.run_dir
-for run_n in range(6,7):
+for run_n in range(7,8):
     results_dir = f"results/inpaint_run{run_n}"
     print(f"results dir: {results_dir}")
     if os.path.exists(results_dir):

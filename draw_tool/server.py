@@ -13,7 +13,9 @@ data_dir = "data/grid_dir/test/"
 rgb_files = os.listdir(os.path.join(data_dir, "rgb"))
 print("rgb files",len(rgb_files))
 global unchanged_lc
+global current_file
 unchanged_lc = None
+current_file = ""
 
 
 class Serv(BaseHTTPRequestHandler):
@@ -47,8 +49,9 @@ class Serv(BaseHTTPRequestHandler):
                 "rgb":rgb.flatten().tolist(),
                 "lc":lc.flatten().tolist()
             }
-            global unchanged_lc
+            global unchanged_lc, current_file
             unchanged_lc = lc
+            current_file = fn
             
             self.send_response(200)
             self.end_headers()
@@ -69,9 +72,9 @@ class Serv(BaseHTTPRequestHandler):
         self.end_headers()
 
         model_name = self.path.split("/")[2]
-        global unchanged_lc
+        global unchanged_lc, current_file
         
-        fake_img = handle_images(message, model_name, unchanged_lc)
+        fake_img = handle_images(message, model_name, unchanged_lc, current_file)
         self.wfile.write(bytes(json.dumps((fake_img.flatten()).tolist()),'utf-8'))
 
 def run_server():

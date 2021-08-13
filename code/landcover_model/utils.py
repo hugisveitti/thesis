@@ -55,6 +55,12 @@ def save_example(lc_model, val_loader, epoch, folder, device, num_examples=1):
 
             
             plt.savefig(f"{folder}/gen_{epoch}_{example}.png")
+
+            plt.imsave(os.path.join(folder, f"{epoch}_{example}_rgb.png"), input_img)
+            plt.imsave(os.path.join(folder, f"{epoch}_{example}_lc.png"), target_img)
+            plt.imsave(os.path.join(folder, f"{epoch}_{example}_genlc.png"), fake_c)
+
+            
             plt.close()
         example += 1
 
@@ -92,14 +98,14 @@ def calc_all_IoUs(lc_a, lc_b):
 
 
 def test():
-    device = "cpu" #"cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     results_dir = "results/landcover_run7"
     model_dir = f"{results_dir}/models/lc_model.pt"
     lc_model = LandcoverModel().to(device)
     lc_model.load_state_dict(torch.load(model_dir))
     num_examples = 50
     dataset = SatelliteDataset("../../data/grid_dir/val/", num_examples)
-    loader = DataLoader(dataset, 1)
+    loader = DataLoader(dataset, 1, shuffle=True)
 
     save_example(lc_model, loader, 50, f"{results_dir}/random_examples", device, num_examples)
 

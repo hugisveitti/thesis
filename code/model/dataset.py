@@ -106,6 +106,7 @@ class SatelliteDataset(Dataset):
             masked_areas.append(masked_area)
 
         return rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas
+        #return rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas, rgb_b
 
 
 def test():
@@ -113,13 +114,16 @@ def test():
     import matplotlib.pyplot as plt
 
     ds = SatelliteDataset("../../data/grid_dir/val")
-    loader = DataLoader(ds, 1, True)
+    loader = DataLoader(ds, 1, shuffle=True)
     i = 0
-    num_examples = 5
+    num_examples = 15
     
     for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas in loader:
+    #for rgb_a, rgb_ab, lc_a, lc_b, binary_mask, lc_ab, masked_areas, rgb_b in loader:
+        
         rgb_a = unprocess(rgb_a)
         rgb_ab = unprocess(rgb_ab)
+        #rgb_b = unprocess(rgb_b)
         lc_a = unprocess(lc_a)
         lc_b = unprocess(lc_b)
         lc_ab = unprocess(lc_ab)
@@ -154,6 +158,22 @@ def test():
             os.mkdir(folder)
 
         plt.savefig(folder + f"/input_example_{i}.png")
+
+        curr_dir = os.path.join(folder, "input_examples")
+        if not os.path.exists(curr_dir):
+            os.mkdir(curr_dir)
+
+        curr_dir = os.path.join(folder, "input_examples", str(i))
+        if not os.path.exists(curr_dir):
+            os.mkdir(curr_dir)
+
+        plt.imsave(os.path.join(curr_dir, "rgb_a.png"), rgb_a)
+        # plt.imsave(os.path.join(curr_dir, "rgb_b.png"), rgb_b)
+        plt.imsave(os.path.join(curr_dir, "rgb_ab.png"), rgb_ab)
+        plt.imsave(os.path.join(curr_dir, "lc_a.png"), lc_a)
+        plt.imsave(os.path.join(curr_dir, "lc_b.png"), lc_b)
+        plt.imsave(os.path.join(curr_dir, "lc_ab.png"), lc_ab)
+        plt.imsave(os.path.join(curr_dir, "binary_mask.png"), binary_mask)
 
         i += 1
         if i == num_examples:

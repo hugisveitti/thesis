@@ -36,6 +36,7 @@ parser.add_argument("--batch_size", type=int, default=8)
 parser.add_argument("--val_batch_size", type=int, default=8)
 parser.add_argument("--num_workers", type=int, default=4)
 # activate dynamic lambdas after certain epoch, if -1 then never
+# Note dynamic lambdas was not used
 parser.add_argument("--dynamic_lambdas_epoch", type=int, default=-1)
 
 parser.add_argument("--g_feature_lambda", type=float, default=0.)

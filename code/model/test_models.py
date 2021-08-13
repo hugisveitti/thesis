@@ -124,7 +124,7 @@ def save_two_samples(generator, discriminator, folder, loader, ds, device):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_dir", type=str, default="../../data/grid_dir/val")
-parser.add_argument("--num_samples", type=int, default=1)
+parser.add_argument("--num_samples", type=int, default=15)
 parser.add_argument("--run_dir", type=str, default="results/run31")
 parser.add_argument("--device", type=str, default="cpu")
 
@@ -137,7 +137,7 @@ loader = DataLoader(ds, 1)
 
 
 results_dir = args.run_dir
-for run_n in range(35,36):
+for run_n in range(12,13):
     results_dir = f"results/run{run_n}"
     print(f"results dir: {results_dir}")
     if os.path.exists(results_dir):

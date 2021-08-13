@@ -74,7 +74,9 @@
       modelRadio,
       imgInput,
       saveNameInput,
-      saveAllCheckbox;
+      saveAllCheckbox,
+      circlePencilCheckbox,
+      inpaintModeCheckbox;
     let currentR = 255;
     let currentG = 255;
     let currentB = 255;
@@ -240,7 +242,7 @@
 
       /* img input to get specific image */
       imgInput = createInput("");
-      imgInput.position(550, 450);
+      imgInput.position(550, 430);
       imgInput.size(100);
       imgInput.attribute("placeholder", "filename");
 
@@ -253,6 +255,14 @@
       /* when checked generate from all three models and save */
       saveAllCheckbox = createCheckbox("Save to disk", false);
       saveAllCheckbox.position(550, 375);
+
+      /* Use a circle pencil */
+      circlePencilCheckbox = createCheckbox("Circle pencil", false);
+      circlePencilCheckbox.position(550, 470);
+
+      /* Inpaint mode only changes the BM */
+      inpaintModeCheckbox = createCheckbox("Inpaint mode", false);
+      inpaintModeCheckbox.position(550, 490);
     }
 
     const drawColorPicker = () => {
@@ -288,22 +298,29 @@
           mouseY < 256 + 256 &&
           mouseY > 0
         ) {
+          const myY = mouseY % 256;
+          const myX = mouseX % 256;
           for (let i = -pencilWidth / 2; i < pencilWidth / 2; i++) {
             for (let j = -pencilWidth / 2; j < pencilWidth / 2; j++) {
-              const myY = mouseY % 256;
-              const myX = mouseX % 256;
-              const p_off = (((myY % 256) + j) * 256 + (myX + i - 256)) * 3;
-              if (p_off > 0 && p_off < lcPixels.length) {
-                lcPixels[p_off] = currentR;
-                lcPixels[p_off + 1] = currentG;
-                lcPixels[p_off + 2] = currentB;
+              const dist = circlePencilCheckbox.checked()
+                ? Math.sqrt(i * i + j * j)
+                : 0;
+              if (dist < pencilWidth / 2) {
+                const p_off = (((myY % 256) + j) * 256 + (myX + i - 256)) * 3;
+                if (p_off > 0 && p_off < lcPixels.length) {
+                  if (!inpaintModeCheckbox.checked()) {
+                    lcPixels[p_off] = currentR;
+                    lcPixels[p_off + 1] = currentG;
+                    lcPixels[p_off + 2] = currentB;
+                  }
 
-                binaryPixels[p_off] = 255;
-                binaryPixels[p_off + 1] = 255;
-                binaryPixels[p_off + 1] = 255;
+                  binaryPixels[p_off] = 255;
+                  binaryPixels[p_off + 1] = 255;
+                  binaryPixels[p_off + 1] = 255;
 
-                const bin_p_off = (myY + j) * 256 + (myX + i - 256);
-                binaryMask[bin_p_off] = 1;
+                  const bin_p_off = (myY + j) * 256 + (myX + i - 256);
+                  binaryMask[bin_p_off] = 1;
+                }
               }
             }
           }
@@ -330,7 +347,11 @@
 
       noStroke();
       fill(color(currentR, currentG, currentB));
-      rect(mouseX - pencilWidth / 2, mouseY - pencilWidth / 2, pencilWidth);
+      if (circlePencilCheckbox.checked()) {
+        circle(mouseX, mouseY, pencilWidth);
+      } else {
+        rect(mouseX - pencilWidth / 2, mouseY - pencilWidth / 2, pencilWidth);
+      }
     }
 
     const sendBtn = document.getElementById("send-btn");

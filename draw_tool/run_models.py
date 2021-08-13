@@ -37,7 +37,7 @@ def process(ma):
 
 
 generator_file1 = "code/model/models/generator1.pt"
-generator_file1 = "code/model/results/run38/models/generator.pt"
+# generator_file1 = "code/model/results/run41/models/generator.pt"
 generator1 = Generator().to(device)
 generator1.load_state_dict(torch.load(generator_file1))
 generator1.eval()
@@ -47,7 +47,7 @@ for m in generator1.modules():
 
 
 generator_file2 = "code/model/models/generator2.pt"
-generator_file2 = "code/model/results/run40/models/generator.pt"
+# generator_file2 = "code/model/results/run40/models/generator.pt"
 
 generator2 = Generator().to(device)
 generator2.load_state_dict(torch.load(generator_file2))
@@ -76,7 +76,7 @@ if not os.path.exists(c_dir):
     os.mkdir(c_dir)
 
 # model_name can be 'inpaint', model1, model2
-def handle_images(d, model_name, unchanged_lc):
+def handle_images(d, model_name, unchanged_lc, current_file):
     use_inpaint = model_name == 'inpaint'
     rgb = d["rgb"]
     lc = d["lc"]
@@ -87,7 +87,7 @@ def handle_images(d, model_name, unchanged_lc):
     save_name = d["saveName"]
     start_time = time.time()
     
-    if save_name != "":
+    if save_name != "" and save_all:
         curr_save_dir = os.path.join(save_dir, save_name)
         if not os.path.exists(curr_save_dir):
             os.mkdir(curr_save_dir)
@@ -187,5 +187,8 @@ def handle_images(d, model_name, unchanged_lc):
 
     end_time = time.time()
     print("time ellapsed", end_time - start_time)
+    if save_all:
+        with open(os.path.join(curr_save_dir, "filename.txt"), "w") as f:
+            f.write(current_file)
 
     return fake_img
