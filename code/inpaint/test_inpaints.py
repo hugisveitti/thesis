@@ -17,7 +17,7 @@ d.load_state_dict(torch.load("results/inpaint_run6/models/discriminator.pt"))
 ds = SatelliteDataset("../../data/grid_dir/val")
 loader = DataLoader(ds, 1, shuffle=True)
 
-folder = "testsetup"
+folder = "images"
 
 save_example(g, d, folder, 0, loader, device)
 
