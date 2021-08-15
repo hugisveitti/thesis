@@ -15,7 +15,7 @@ save_dir = "test_images"
 if not os.path.exists(save_dir):
     os.mkdir(save_dir)
 
-save_dir = os.path.join("drawtool")
+save_dir = os.path.join(save_dir, "drawtool")
 if not os.path.exists(save_dir):
     os.mkdir(save_dir)
 print("images will be saved in", save_dir)
