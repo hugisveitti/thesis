@@ -28,15 +28,14 @@ concat the lc_ab and the mask and input to the lc_network
 
 The lambdas
 
-- STYLE_LAMBDA = 0.
-- ADV_LAMBDA = 0.5
-- PIXEL_LAMBDA = 0.50
-- ID_LAMBDA = 0.5
-- LOCAL_STYLE_LAMBDA = 0.9
-- LOCAL_PIXEL_LAMBDA = 0.
-- G_LC_LAMBDA = 0.9
-
-Maybe change the losses or pretrain with only ID_loss?
+- FEATURE_LAMBDA = 0.
+- ADV_LAMBDA = 1
+- PIXEL_LAMBDA = 1
+- ID_LAMBDA = 0.15
+- LOCAL_STYLE_LAMBDA = 1
+- LOCAL_FEATURE_LAMBDA = 1
+- LOCAL_PIXEL_LAMBDA = 0. or 1.
+- G_LC_LAMBDA = 1
 
 ### Discriminator loss
 

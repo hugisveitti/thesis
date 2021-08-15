@@ -11,6 +11,8 @@ loading_example.ipynb -> walkthrough how to align the data, this should be appli
 
 You need to have some python packages such as numpy, matplotlib, PIL etc.
 
+You need to put denmark_landcover.tif and the satellite/ folder into the data/ dir.
+
 To use and install rasterio, I recommend using Miniconda3.
 
 ```
