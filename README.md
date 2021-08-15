@@ -1,4 +1,4 @@
-# Thesis
+# Generative Neural Networks for Ecosystem Simulation
 
 ### Creating a town
 
